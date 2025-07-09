@@ -139,10 +139,25 @@
         tempImg.src = img.src;
         tempImg.onload = () => {
           const scale = parseFloat(img.style.transform.replace('scale(', '').replace(')', ''));
-          const drawWidth = 150 * scale;
-          const drawHeight = 250 * scale;
+
+          // Draw at fixed 150x250 container
+          const targetWidth = 150;
+          const targetHeight = 250;
+          const imgRatio = tempImg.width / tempImg.height;
+          const boxRatio = targetWidth / targetHeight;
+
+          let drawWidth, drawHeight;
+          if (imgRatio > boxRatio) {
+            drawHeight = targetHeight * scale;
+            drawWidth = drawHeight * imgRatio;
+          } else {
+            drawWidth = targetWidth * scale;
+            drawHeight = drawWidth / imgRatio;
+          }
+
           const dx = 150 * i + (150 - drawWidth) / 2;
           const dy = (250 - drawHeight) / 2;
+
           ctx.drawImage(tempImg, dx, dy, drawWidth, drawHeight);
 
           loaded++;
