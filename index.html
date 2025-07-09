@@ -162,23 +162,31 @@
         tempImg.crossOrigin = "anonymous";
         tempImg.src = img.src;
         tempImg.onload = () => {
-          const scale = parseFloat(box.range.value) / 100;
+        const scale = parseFloat(box.range.value) / 100;
 
-          const drawWidth = tempImg.width * scale;
-          const drawHeight = tempImg.height * scale;
+      // 원본 이미지 크기
+      const originalWidth = tempImg.width;
+      const originalHeight = tempImg.height;
 
-          let dx = 150 * i + (150 - drawWidth) / 2;
-          let dy = (250 - drawHeight) / 2;
+      // 스케일 적용
+      const drawWidth = originalWidth * scale;
+      const drawHeight = originalHeight * scale;
 
-          ctx.drawImage(tempImg, dx, dy, drawWidth, drawHeight);
+      // 캔버스 안에서 중앙 정렬
+      const dx = 150 * i + (150 - drawWidth) / 2;
+      const dy = (250 - drawHeight) / 2;
 
-          loaded++;
-          if (loaded === imageBoxes.length) {
-            const dataURL = canvas.toDataURL();
-            const newWindow = window.open();
-            newWindow.document.write(`<img src="${dataURL}" style="width:1200px; height:250px;" />`);
-          }
-        };
+      // 이미지 전체가 잘리지 않고 보이도록 그리기
+      ctx.drawImage(tempImg, 0, 0, originalWidth, originalHeight, dx, dy, drawWidth, drawHeight);
+
+      loaded++;
+      if (loaded === imageBoxes.length) {
+        const dataURL = canvas.toDataURL();
+        const newWindow = window.open();
+        newWindow.document.write(`<img src="${dataURL}" style="width:1200px; height:250px;" />`);
+      }
+    };
+
       });
     });
   </script>
