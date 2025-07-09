@@ -58,10 +58,6 @@
       height: 100%;
       object-fit: cover;
       transition: transform 0.3s;
-      cursor: grab;
-      position: absolute;
-      top: 0;
-      left: 0;
     }
     #save-btn {
       margin-top: 20px;
@@ -168,14 +164,8 @@
         tempImg.onload = () => {
           const scale = parseFloat(box.range.value) / 100;
 
-          const targetWidth = 150;
-          const targetHeight = 250;
-          const imgRatio = tempImg.width / tempImg.height;
-          const boxRatio = targetWidth / targetHeight;
-
-          let drawWidth, drawHeight;
-          drawWidth = tempImg.width * scale;
-          drawHeight = tempImg.height * scale;
+          const drawWidth = tempImg.width * scale;
+          const drawHeight = tempImg.height * scale;
 
           const dx = 150 * i + (150 - drawWidth) / 2;
           const dy = (250 - drawHeight) / 2;
@@ -188,7 +178,7 @@
             const newWindow = window.open();
             newWindow.document.write(`<img src="${dataURL}" style="width:1200px; height:250px;" />`);
           }
-        }
+        };
       });
     });
   </script>
