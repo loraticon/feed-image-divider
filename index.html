@@ -174,13 +174,12 @@
           const boxRatio = targetWidth / targetHeight;
 
           let drawWidth, drawHeight;
-          if (imgRatio > boxRatio) {
-            drawHeight = targetHeight * scale;
-            drawWidth = drawHeight * imgRatio;
-          } else {
-            drawWidth = targetWidth * scale;
-            drawHeight = drawWidth / imgRatio;
-          }
+          drawWidth = tempImg.width * scale;
+          drawHeight = tempImg.height * scale;
+
+          const dx = 150 * i + (150 - drawWidth) / 2;
+          const dy = (250 - drawHeight) / 2;
+
 
           const dx = 150 * i + (150 - drawWidth) / 2;
           const dy = (250 - drawHeight) / 2;
