@@ -58,6 +58,10 @@
       height: 100%;
       object-fit: cover;
       transition: transform 0.3s;
+      cursor: grab;
+      position: absolute;
+      top: 0;
+      left: 0;
     }
     #save-btn {
       margin-top: 20px;
@@ -67,9 +71,7 @@
 </head>
 <body>
   <h3>이미지 박스에 8개의 이미지를 드래그해 넣을 수 있어요!</h3>
-  <div class="container" id="imageContainer">
-    <!-- 8 boxes will be inserted here -->
-  </div>
+  <div class="container" id="imageContainer"></div>
   <button id="save-btn">저장</button>
 
   <script>
@@ -99,6 +101,29 @@
       const img = document.createElement('img');
       img.style.transform = 'scale(1)';
 
+      let isDragging = false;
+      let startX = 0, startY = 0;
+      let offsetX = 0, offsetY = 0;
+
+      img.addEventListener('mousedown', (e) => {
+        isDragging = true;
+        startX = e.clientX - offsetX;
+        startY = e.clientY - offsetY;
+        img.style.cursor = 'grabbing';
+      });
+
+      document.addEventListener('mousemove', (e) => {
+        if (!isDragging) return;
+        offsetX = e.clientX - startX;
+        offsetY = e.clientY - startY;
+        img.style.transform = `scale(${parseFloat(range.value) / 100}) translate(${offsetX}px, ${offsetY}px)`;
+      });
+
+      document.addEventListener('mouseup', () => {
+        isDragging = false;
+        img.style.cursor = 'grab';
+      });
+
       fileInput.addEventListener('change', (e) => {
         const file = e.target.files[0];
         if (file) {
@@ -109,7 +134,7 @@
 
       range.addEventListener('input', (e) => {
         const scale = parseInt(e.target.value) / 100;
-        img.style.transform = `scale(${scale})`;
+        img.style.transform = `scale(${scale}) translate(${offsetX}px, ${offsetY}px)`;
       });
 
       controls.appendChild(fileInput);
@@ -120,10 +145,9 @@
       box.appendChild(preview);
       container.appendChild(box);
 
-      imageBoxes.push({ fileInput, img, range });
+      imageBoxes.push({ fileInput, img, range, offsetX: () => offsetX, offsetY: () => offsetY });
     }
 
-    // Drag & Drop 지원
     container.addEventListener("dragover", (e) => {
       e.preventDefault();
       container.style.backgroundColor = "#d0e6ff";
@@ -136,7 +160,6 @@
     container.addEventListener("drop", (e) => {
       e.preventDefault();
       container.style.backgroundColor = "";
-
       const files = [...e.dataTransfer.files].filter(f => f.type.startsWith("image/"));
       files.slice(0, 8).forEach((file, idx) => {
         const box = imageBoxes[idx];
@@ -152,20 +175,21 @@
       canvas.width = 1200;
       canvas.height = 250;
       const ctx = canvas.getContext('2d');
-
       let loaded = 0;
+
       imageBoxes.forEach((box, i) => {
         const img = box.img;
         if (!img.src) {
           loaded++;
           return;
         }
-
         const tempImg = new Image();
         tempImg.crossOrigin = "anonymous";
         tempImg.src = img.src;
         tempImg.onload = () => {
-          const scale = parseFloat(img.style.transform.replace('scale(', '').replace(')', ''));
+          const scale = parseFloat(box.range.value) / 100;
+          const translateX = box.offsetX();
+          const translateY = box.offsetY();
 
           const targetWidth = 150;
           const targetHeight = 250;
@@ -181,8 +205,8 @@
             drawHeight = drawWidth / imgRatio;
           }
 
-          const dx = 150 * i + (150 - drawWidth) / 2;
-          const dy = (250 - drawHeight) / 2;
+          const dx = 150 * i + (150 - drawWidth) / 2 + translateX;
+          const dy = (250 - drawHeight) / 2 + translateY;
 
           ctx.drawImage(tempImg, dx, dy, drawWidth, drawHeight);
 
