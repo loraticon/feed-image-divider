@@ -92,7 +92,7 @@
       const range = document.createElement('input');
       range.type = 'range';
       range.min = 10;
-      range.max = 200;
+      range.max = 1000;
       range.value = 100;
 
       const preview = document.createElement('div');
@@ -129,6 +129,9 @@
         if (file) {
           const url = URL.createObjectURL(file);
           img.src = url;
+          offsetX = 0;
+          offsetY = 0;
+          img.style.transform = `scale(${parseFloat(range.value) / 100}) translate(0px, 0px)`;
         }
       });
 
@@ -145,7 +148,7 @@
       box.appendChild(preview);
       container.appendChild(box);
 
-      imageBoxes.push({ fileInput, img, range, offsetX: () => offsetX, offsetY: () => offsetY });
+      imageBoxes.push({ fileInput, img, range, getOffsetX: () => offsetX, getOffsetY: () => offsetY });
     }
 
     container.addEventListener("dragover", (e) => {
@@ -166,6 +169,7 @@
         if (box) {
           const url = URL.createObjectURL(file);
           box.img.src = url;
+          box.img.style.transform = `scale(${parseFloat(box.range.value) / 100}) translate(0px, 0px)`;
         }
       });
     });
@@ -188,8 +192,8 @@
         tempImg.src = img.src;
         tempImg.onload = () => {
           const scale = parseFloat(box.range.value) / 100;
-          const translateX = box.offsetX();
-          const translateY = box.offsetY();
+          const translateX = box.getOffsetX();
+          const translateY = box.getOffsetY();
 
           const targetWidth = 150;
           const targetHeight = 250;
