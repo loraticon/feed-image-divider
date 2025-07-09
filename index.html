@@ -167,8 +167,8 @@
           const drawWidth = tempImg.width * scale;
           const drawHeight = tempImg.height * scale;
 
-          const dx = 150 * i + (150 - drawWidth) / 2;
-          const dy = (250 - drawHeight) / 2;
+          let dx = 150 * i + (150 - drawWidth) / 2;
+          let dy = (250 - drawHeight) / 2;
 
           ctx.drawImage(tempImg, dx, dy, drawWidth, drawHeight);
 
