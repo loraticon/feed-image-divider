@@ -54,9 +54,9 @@
       position: relative;
     }
     .image-box img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
+      max-width: none;
+      max-height: none;
+      object-fit: contain;
       transition: transform 0.3s;
       cursor: grab;
       position: absolute;
@@ -195,22 +195,11 @@
           const translateX = box.getOffsetX();
           const translateY = box.getOffsetY();
 
-          const targetWidth = 150;
-          const targetHeight = 250;
-          const imgRatio = tempImg.width / tempImg.height;
-          const boxRatio = targetWidth / targetHeight;
+          const drawWidth = tempImg.width * scale;
+          const drawHeight = tempImg.height * scale;
 
-          let drawWidth, drawHeight;
-          if (imgRatio > boxRatio) {
-            drawHeight = targetHeight * scale;
-            drawWidth = drawHeight * imgRatio;
-          } else {
-            drawWidth = targetWidth * scale;
-            drawHeight = drawWidth / imgRatio;
-          }
-
-          const dx = 150 * i + (150 - drawWidth) / 2 + translateX;
-          const dy = (250 - drawHeight) / 2 + translateY;
+          const dx = 150 * i + translateX;
+          const dy = 0 + translateY;
 
           ctx.drawImage(tempImg, dx, dy, drawWidth, drawHeight);
 
