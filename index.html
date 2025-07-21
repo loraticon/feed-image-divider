@@ -1,194 +1,137 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ko">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>8-Box Image Widget</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Notion Image Widget</title>
   <style>
-    * { box-sizing: border-box; }
-    body {
-      font-family: sans-serif;
-      margin: 0;
-      padding: 1rem;
-      background: #f9f9f9;
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: sans-serif; padding: 20px; background: #f5f5f5; }
+    #widget { width: 100%; max-width: 600px; margin: 0 auto; }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
     }
-    .container {
-      width: 1200px;
-      height: 250px;
-      display: flex;
-      gap: 0;
-      border: 2px dashed #aaa;
-    }
-    .image-box {
-      width: 150px;
-      height: 250px;
+    .slot {
       position: relative;
-      border: 1px solid #ccc;
+      width: 100%;
+      padding-top: 100%; /* 정사각형 유지 */
       background: #eee;
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
-      align-items: center;
-      padding: 5px;
-    }
-    .image-controls {
-      width: 100%;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 5px;
-    }
-    .image-box input[type="file"] {
-      width: 100%;
-    }
-    .image-box input[type="range"] {
-      width: 80%;
-    }
-    .image-box .preview {
-      flex: 1;
-      width: 100%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      border-radius: 12px;
       overflow: hidden;
-      position: relative;
+      cursor: pointer;
     }
-    .image-box img {
-      width: 100%;
-      height: 100%;
+    .slot img {
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      width: 100%; height: 100%;
+    }
+    .slot.horizontal img {
       object-fit: cover;
-      transition: transform 0.3s;
+      object-position: center;
     }
-    #save-btn {
-      margin-top: 20px;
-      padding: 10px 20px;
+    .slot.vertical img {
+      object-fit: contain;
+      object-position: center;
+      background: #eee;
     }
+    .plus {
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 48px;
+      color: #aaa;
+      pointer-events: none;
+    }
+    #clearBtn {
+      display: block;
+      margin: 20px auto 0;
+      padding: 8px 16px;
+      background: #fff;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    #clearBtn:hover { background: #fafafa; }
+    .dragover { outline: 2px dashed #777; }
   </style>
 </head>
 <body>
-  <h3>이미지 박스에 8개의 이미지를 드래그해 넣을 수 있어요!</h3>
-  <div class="container" id="imageContainer"></div>
-  <button id="save-btn">저장</button>
-
+  <div id="widget">
+    <div class="grid" id="grid"></div>
+    <button id="clearBtn">전체 비우기</button>
+  </div>
+  <input type="file" id="fileInput" accept="image/*" multiple style="display:none;">
   <script>
-    const container = document.getElementById('imageContainer');
-    const imageBoxes = [];
+    const grid = document.getElementById('grid');
+    const fileInput = document.getElementById('fileInput');
+    const clearBtn = document.getElementById('clearBtn');
+    const MAX_IMAGES = 8;
+    let images = [];
 
-    for (let i = 0; i < 8; i++) {
-      const box = document.createElement('div');
-      box.className = 'image-box';
-
-      const controls = document.createElement('div');
-      controls.className = 'image-controls';
-
-      const fileInput = document.createElement('input');
-      fileInput.type = 'file';
-      fileInput.accept = 'image/*';
-
-      const range = document.createElement('input');
-      range.type = 'range';
-      range.min = 10;
-      range.max = 1000;
-      range.value = 100;
-
-      const preview = document.createElement('div');
-      preview.className = 'preview';
-
-      const img = document.createElement('img');
-      img.style.transform = 'scale(1)';
-
-      fileInput.addEventListener('change', (e) => {
-        const file = e.target.files[0];
-        if (file) {
-          const url = URL.createObjectURL(file);
-          img.src = url;
-          img.style.transform = `scale(${parseFloat(range.value) / 100})`;
-        }
+    function updateGrid() {
+      grid.innerHTML = '';
+      images.forEach(src => {
+        const slot = document.createElement('div');
+        slot.className = 'slot';
+        const img = document.createElement('img');
+        img.src = src;
+        img.onload = () => {
+          if (img.naturalWidth > img.naturalHeight) slot.classList.add('horizontal');
+          else slot.classList.add('vertical');
+        };
+        slot.appendChild(img);
+        grid.appendChild(slot);
       });
-
-      range.addEventListener('input', (e) => {
-        const scale = parseInt(e.target.value) / 100;
-        img.style.transform = `scale(${scale})`;
-      });
-
-      controls.appendChild(fileInput);
-      controls.appendChild(range);
-      preview.appendChild(img);
-
-      box.appendChild(controls);
-      box.appendChild(preview);
-      container.appendChild(box);
-
-      imageBoxes.push({ fileInput, img, range });
+      if (images.length < MAX_IMAGES) {
+        const plusSlot = document.createElement('div');
+        plusSlot.className = 'slot plus-slot';
+        const plus = document.createElement('div');
+        plus.className = 'plus';
+        plus.textContent = '+';
+        plusSlot.appendChild(plus);
+        plusSlot.addEventListener('click', () => fileInput.click());
+        grid.appendChild(plusSlot);
+      }
     }
 
-    container.addEventListener("dragover", (e) => {
-      e.preventDefault();
-      container.style.backgroundColor = "#d0e6ff";
+    fileInput.addEventListener('change', e => {
+      const files = Array.from(e.target.files).slice(0, MAX_IMAGES - images.length);
+      files.forEach(file => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          images.push(reader.result);
+          updateGrid();
+        };
+        reader.readAsDataURL(file);
+      });
+      fileInput.value = '';
     });
 
-    container.addEventListener("dragleave", () => {
-      container.style.backgroundColor = "";
-    });
-
-    container.addEventListener("drop", (e) => {
-      e.preventDefault();
-      container.style.backgroundColor = "";
-      const files = [...e.dataTransfer.files].filter(f => f.type.startsWith("image/"));
-      files.slice(0, 8).forEach((file, idx) => {
-        const box = imageBoxes[idx];
-        if (box) {
-          const url = URL.createObjectURL(file);
-          box.img.src = url;
-          box.img.style.transform = `scale(${parseFloat(box.range.value) / 100})`;
-        }
+    grid.addEventListener('dragover', e => { e.preventDefault(); grid.classList.add('dragover'); });
+    grid.addEventListener('dragleave', e => { grid.classList.remove('dragover'); });
+    grid.addEventListener('drop', e => {
+      e.preventDefault(); grid.classList.remove('dragover');
+      const files = Array.from(e.dataTransfer.files)
+        .filter(f => f.type.startsWith('image/'))
+        .slice(0, MAX_IMAGES - images.length);
+      files.forEach(file => {
+        const reader = new FileReader();
+        reader.onload = () => { images.push(reader.result); updateGrid(); };
+        reader.readAsDataURL(file);
       });
     });
 
-    document.getElementById('save-btn').addEventListener('click', () => {
-      const canvas = document.createElement('canvas');
-      canvas.width = 1200;
-      canvas.height = 250;
-      const ctx = canvas.getContext('2d');
-      let loaded = 0;
-
-      imageBoxes.forEach((box, i) => {
-        const img = box.img;
-        if (!img.src) {
-          loaded++;
-          return;
-        }
-        const tempImg = new Image();
-        tempImg.crossOrigin = "anonymous";
-        tempImg.src = img.src;
-        tempImg.onload = () => {
-        const scale = parseFloat(box.range.value) / 100;
-
-      // 원본 이미지 크기
-      const originalWidth = tempImg.width;
-      const originalHeight = tempImg.height;
-
-      // 스케일 적용
-      const drawWidth = originalWidth * scale;
-      const drawHeight = originalHeight * scale;
-
-      // 캔버스 안에서 중앙 정렬
-      const dx = 150 * i + (150 - drawWidth) / 2;
-      const dy = (250 - drawHeight) / 2;
-
-      // 이미지 전체가 잘리지 않고 보이도록 그리기
-      ctx.drawImage(tempImg, 0, 0, originalWidth, originalHeight, dx, dy, drawWidth, drawHeight);
-
-      loaded++;
-      if (loaded === imageBoxes.length) {
-        const dataURL = canvas.toDataURL();
-        const newWindow = window.open();
-        newWindow.document.write(`<img src="${dataURL}" style="width:1200px; height:250px;" />`);
+    clearBtn.addEventListener('click', () => {
+      if (confirm('정말 모두 삭제하시겠습니까?')) {
+        images = [];
+        updateGrid();
       }
-    };
-
-      });
     });
+
+    // 초기 상태
+    updateGrid();
   </script>
 </body>
 </html>
