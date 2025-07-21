@@ -1,141 +1,136 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Notion Image Widget (JPG 내보내기)</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Notion Image Widget</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: sans-serif; padding: 20px; background: #f5f5f5; }
-    #controls { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
-    .bg-btn, #downloadBtn, #clearBtn { padding: 8px 16px; border: none; border-radius: 8px; cursor: pointer; }
-    .bg-btn { background: #eee; color: #333; margin-right: 8px; }
-    .bg-btn.active { background: #333; color: #fff; }
-    #downloadBtn { background: #4CAF50; color: #fff; }
-    #clearBtn { background: #f44336; color: #fff; }
-    .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
-    .slot { position: relative; width: 100%; padding-top: 100%; border-radius: 12px; overflow: hidden; background: #eee; }
-    .slot img { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: contain; object-position: center; }
-    .slot.horizontal img { object-fit: cover; }
-    .slot.vertical img { object-fit: cover; transform: scale(1.05); transform-origin: center; }
-    .plus { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 48px; color: #aaa; pointer-events: none; }
+    #widget { width: 100%; max-width: 600px; margin: 0 auto; }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+    }
+    .slot {
+      position: relative;
+      width: 100%;
+      padding-top: 100%; /* 1:1 비율 유지 */
+      background: #eee;
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .slot img {
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      width: 100%; height: 100%;
+      object-fit: cover;
+      object-position: center;
+      display: block;
+    }
+    /* 다운로드 페이지에서도 same styling 적용 */
+    #controls {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin: 16px 0;
+    }
+    .bg-btn {
+      padding: 6px 12px;
+      border: 1px solid #ccc;
+      background: #fff;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .bg-btn.active { border-color: #888; font-weight: bold; }
+    #downloadBtn, #clearBtn {
+      padding: 8px 16px;
+      background: #4CAF50; color: #fff;
+      border: none; border-radius: 8px;
+      cursor: pointer;
+    }
+    #clearBtn { background: #f44336; margin-left: 8px; }
+    #downloadBtn:hover { background: #45A049; }
+    #clearBtn:hover { background: #e53935; }
+    .dragover { outline: 2px dashed #777; }
   </style>
 </head>
 <body>
-  <div id="controls">
-    <button id="addBtn">이미지 추가</button>
-    <button class="bg-btn active" data-color="#ffffff">라이트</button>
-    <button class="bg-btn" data-color="#191919">다크</button>
-    <button id="downloadBtn">JPG 다운로드</button>
-    <button id="clearBtn">전체 비우기</button>
+  <div id="widget">
+    <div id="controls">
+      <div>
+        <button class="bg-btn active" data-color="#ffffff">Light</button>
+        <button class="bg-btn" data-color="#191919">Dark</button>
+      </div>
+      <div>
+        <button id="downloadBtn">다운로드 페이지 생성</button>
+        <button id="clearBtn">전체 비우기</button>
+      </div>
+    </div>
+    <div class="grid" id="grid"></div>
   </div>
-  <div class="grid" id="grid"></div>
-  <input type="file" id="fileInput" accept="image/*" multiple style="display:none" />
-  <canvas id="exportCanvas" style="display:none"></canvas>
+  <input type="file" id="fileInput" accept="image/*" multiple style="display:none;">
   <script>
-    (function(){
-      const MAX = 8;
-      let images = [];
-      let bgColor = '#ffffff';
-      const grid = document.getElementById('grid');
-      const fileInput = document.getElementById('fileInput');
-      const addBtn = document.getElementById('addBtn');
-      const downloadBtn = document.getElementById('downloadBtn');
-      const clearBtn = document.getElementById('clearBtn');
-      const bgBtns = document.querySelectorAll('.bg-btn');
-      const canvas = document.getElementById('exportCanvas');
+    const grid = document.getElementById('grid');
+    const fileInput = document.getElementById('fileInput');
+    const clearBtn = document.getElementById('clearBtn');
+    const downloadBtn = document.getElementById('downloadBtn');
+    const bgBtns = document.querySelectorAll('.bg-btn');
+    let selectedColor = '#ffffff';
+    const MAX = 8;
+    let imgs = [];
 
-      function renderGrid(){
-        grid.innerHTML = '';
-        images.forEach(src => {
-          const slot = document.createElement('div'); slot.className = 'slot';
-          const img = document.createElement('img'); img.src = src;
-          img.onload = () => {
-            if(img.naturalWidth > img.naturalHeight) slot.classList.add('horizontal');
-            else slot.classList.add('vertical');
-          };
-          slot.appendChild(img);
-          grid.appendChild(slot);
-        });
-        if(images.length < MAX){
-          const plus = document.createElement('div'); plus.className = 'slot plus'; plus.textContent = '+';
-          plus.addEventListener('click', ()=> fileInput.click());
-          grid.appendChild(plus);
-        }
+    bgBtns.forEach(b => b.addEventListener('click', () => {
+      bgBtns.forEach(x=>x.classList.remove('active'));
+      b.classList.add('active');
+      selectedColor = b.dataset.color;
+    }));
+
+    function renderGrid() {
+      grid.innerHTML = '';
+      imgs.forEach(src => {
+        const slot = document.createElement('div');
+        slot.className = 'slot';
+        const img = document.createElement('img');
+        img.src = src;
+        slot.appendChild(img);
+        grid.appendChild(slot);
+      });
+      if (imgs.length < MAX) {
+        const plus = document.createElement('div');
+        plus.className = 'slot';
+        plus.innerHTML = '<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:48px;color:#aaa;">+</div>';
+        plus.addEventListener('click', ()=>fileInput.click());
+        grid.appendChild(plus);
       }
+    }
 
-      fileInput.addEventListener('change', e => {
-        const files = Array.from(e.target.files).slice(0, MAX - images.length);
-        files.forEach(f => images.push(URL.createObjectURL(f)));
-        fileInput.value = '';
-        renderGrid();
-      });
+    fileInput.addEventListener('change', e => {
+      Array.from(e.target.files).slice(0, MAX - imgs.length).forEach(f => {
+        const r = new FileReader();
+        r.onload = ()=>{ imgs.push(r.result); renderGrid(); };
+        r.readAsDataURL(f);
+      }); fileInput.value = '';
+    });
+    grid.addEventListener('dragover', e=>{e.preventDefault();grid.classList.add('dragover');});
+    grid.addEventListener('dragleave', e=>grid.classList.remove('dragover'));
+    grid.addEventListener('drop', e=>{
+      e.preventDefault();grid.classList.remove('dragover');
+      Array.from(e.dataTransfer.files).filter(f=>f.type.startsWith('image/')).slice(0, MAX-imgs.length)
+        .forEach(f=>{ const r=new FileReader(); r.onload=()=>{imgs.push(r.result);renderGrid();};r.readAsDataURL(f); });
+    });
+    clearBtn.addEventListener('click', ()=>{ if(confirm('정말 모두 삭제하시겠습니까?')){imgs=[];renderGrid();}});
 
-      addBtn.addEventListener('click', ()=> fileInput.click());
-      clearBtn.addEventListener('click', ()=>{
-        if(confirm('정말 모두 삭제하시겠습니까?')){
-          images = []; renderGrid();
-        }
-      });
-      bgBtns.forEach(b => b.addEventListener('click', ()=>{
-        bgBtns.forEach(x=>x.classList.remove('active'));
-        b.classList.add('active');
-        bgColor = b.dataset.color;
-      }));
+    downloadBtn.addEventListener('click', ()=>{
+      const newWin = window.open('', '_blank');
+      const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Download</title>`+
+        `<style>body{margin:0;padding:20px;background:${selectedColor}} .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;} .slot{position:relative;width:100%;padding-top:100%;overflow:hidden;border-radius:12px;background:#eee;} .slot img{position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;object-position:center;}</style></head><body><div class="grid">`+
+        imgs.map(src=>`<div class="slot"><img src="${src}"/></div>`).join('')+`</div></body></html>`;
+      newWin.document.write(html); newWin.document.close();
+    });
 
-      downloadBtn.addEventListener('click', ()=>{
-        if(!images.length) return alert('이미지를 먼저 추가해주세요.');
-        const cols = 4, gap = 8, cell = 150;
-        const rows = Math.ceil(images.length/cols);
-        const w = cols*cell + (cols-1)*gap;
-        const h = rows*cell + (rows-1)*gap;
-        const scale = window.devicePixelRatio || 2;
-        canvas.width = w*scale;
-        canvas.height = h*scale;
-        const ctx = canvas.getContext('2d');
-        ctx.scale(scale, scale);
-        ctx.fillStyle = bgColor;
-        ctx.fillRect(0,0,w,h);
-
-        function drawRound(img, x, y, size, r=12){
-          ctx.save();
-          ctx.beginPath();
-          ctx.moveTo(x+r,y);
-          ctx.lineTo(x+size-r,y);
-          ctx.arcTo(x+size,y,x+size,y+r,r);
-          ctx.lineTo(x+size,y+size-r);
-          ctx.arcTo(x+size,y+size,x+size-r,y+size,r);
-          ctx.lineTo(x+r,y+size);
-          ctx.arcTo(x,y+size,x,y+size-r,r);
-          ctx.lineTo(x,y+r);
-          ctx.arcTo(x,y,x+r,y,r);
-          ctx.closePath();
-          ctx.clip();
-          const scaleImg = Math.max(size/img.naturalWidth, size/img.naturalHeight);
-          const sw = size/scaleImg, sh = size/scaleImg;
-          const sx = (img.naturalWidth-sw)/2, sy = (img.naturalHeight-sh)/2;
-          ctx.drawImage(img, sx, sy, sw, sh, x, y, size, size);
-          ctx.restore();
-        }
-
-        Promise.all(images.map(src=>new Promise(res=>{
-          const img=new Image(); img.onload=()=>res(img); img.src=src;
-        }))).then(imgsArr=>{
-          imgsArr.forEach((img,i)=>{
-            const col=i%cols, row=Math.floor(i/cols);
-            drawRound(img, col*(cell+gap), row*(cell+gap), cell);
-          });
-          canvas.toBlob(blob=>{
-            const a=document.createElement('a');
-            a.href=URL.createObjectURL(blob);
-            a.download='notion-widget.jpg';
-            a.click();
-          }, 'image/jpeg', 0.92);
-        });
-      });
-
-      renderGrid();
-    })();
+    renderGrid();
   </script>
 </body>
 </html>
