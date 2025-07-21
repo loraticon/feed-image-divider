@@ -72,18 +72,29 @@
       Array.from(e.target.files).slice(0, MAX - imgs.length).forEach(f => {
         const r = new FileReader(); r.onload = () => { imgs.push(r.result); renderGrid(); };
         r.readAsDataURL(f);
-      }); fileInput.value = '';
+      });
+      fileInput.value = '';
     });
+
     grid.addEventListener('dragover', e => { e.preventDefault(); grid.classList.add('dragover'); });
     grid.addEventListener('dragleave', e => grid.classList.remove('dragover'));
     grid.addEventListener('drop', e => {
       e.preventDefault(); grid.classList.remove('dragover');
-      Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/')).slice(0, MAX-imgs.length).forEach(f => {
-        const r = new FileReader(); r.onload = () => { imgs.push(r.result); renderGrid(); };
-        r.readAsDataURL(f);
-      });
+      Array.from(e.dataTransfer.files)
+        .filter(f => f.type.startsWith('image/'))
+        .slice(0, MAX - imgs.length)
+        .forEach(f => {
+          const r = new FileReader(); r.onload = () => { imgs.push(r.result); renderGrid(); };
+          r.readAsDataURL(f);
+        });
     });
-    clearBtn.addEventListener('click', () => { if (confirm('정말 모두 삭제하시겠습니까?')) { imgs = []; renderGrid(); }});
+
+    clearBtn.addEventListener('click', () => {
+      if (confirm('정말 모두 삭제하시겠습니까?')) {
+        imgs = [];
+        renderGrid();
+      }
+    });
 
     function roundRect(ctx, x, y, w, h, r) {
       ctx.beginPath();
@@ -102,14 +113,18 @@
       const cols = 4, gap = 8;
       const slotImgs = Array.from(grid.querySelectorAll('.slot img'));
       if (!slotImgs.length) return alert('이미지가 없습니다.');
-      await Promise.all(slotImgs.map(img => img.complete ? Promise.resolve() : new Promise(res => img.onload = res)));
+      await Promise.all(slotImgs.map(img => img.complete
+        ? Promise.resolve()
+        : new Promise(res => img.onload = res)
+      ));
 
-      const sampleSlot = grid.querySelector('.slot');
-      const SLOT_W = sampleSlot.clientWidth;
-      const SLOT_H = sampleSlot.clientHeight;
+      const sample = grid.querySelector('.slot');
+      const SLOT_W = sample.clientWidth;
+      const SLOT_H = sample.clientHeight;
       const rows = Math.ceil(slotImgs.length / cols);
 
-      const DPR = window.devicePixelRatio || 1;
+      // DPI scaling을 줄여 원본 화질 유지 여유 확보
+      const DPR = 1;
       const canvasW = cols * SLOT_W + gap * (cols - 1);
       const canvasH = rows * SLOT_H + gap * (rows - 1);
       const canvas = document.createElement('canvas');
@@ -136,14 +151,21 @@
       });
 
       const TARGET = 4.5 * 1024 * 1024; // 4.5MB
-      // 이진 탐색으로 최적 quality 찾기
-      async function findBestBlob(type, minQ, maxQ) {
+
+      // 1) 우선 무손실 PNG 시도
+      let blob = await new Promise(res => canvas.toBlob(res, 'image/png'));
+      if (blob.size <= TARGET) {
+        return saveBlob(blob, 'notion-widget.png');
+      }
+
+      // 2) 품질 범위 0.5~1.0 이진 탐색
+      async function findBestBlob(type, minQ = 0.5, maxQ = 1.0) {
         let low = minQ, high = maxQ, best = null;
         for (let i = 0; i < 6; i++) {
           const mid = (low + high) / 2;
-          const blob = await new Promise(res => canvas.toBlob(res, type, mid));
-          if (blob.size <= TARGET) {
-            best = { blob, q: mid };
+          const testBlob = await new Promise(res => canvas.toBlob(res, type, mid));
+          if (testBlob.size <= TARGET) {
+            best = { blob: testBlob, q: mid };
             low = mid;
           } else {
             high = mid;
@@ -152,17 +174,28 @@
         return best;
       }
 
-      let result = await findBestBlob('image/webp', 0.75, 0.95);
-      if (!result) {
-        result = await findBestBlob('image/jpeg', 0.75, 0.95);
-      }
-      const blob = result ? result.blob : await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.8));
+      // WebP 우선 시도
+      let result = await findBestBlob('image/webp');
 
-      const link = document.createElement('a');
-      link.href = URL.createObjectURL(blob);
-      link.download = result && result.blob.type === 'image/webp' ? 'notion-widget.webp' : 'notion-widget.jpg';
-      link.click();
-      URL.revokeObjectURL(link.href);
+      // WebP가 크면 JPEG 시도
+      if (!result) {
+        result = await findBestBlob('image/jpeg');
+      }
+
+      // 마지막 백업: quality=1.0 JPEG
+      blob = result ? result.blob
+                    : await new Promise(res => canvas.toBlob(res, 'image/jpeg', 1.0));
+
+      const ext = blob.type === 'image/webp' ? 'webp' : 'jpg';
+      saveBlob(blob, `notion-widget.${ext}`);
+
+      function saveBlob(blob, filename) {
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = filename;
+        link.click();
+        URL.revokeObjectURL(link.href);
+      }
     });
 
     renderGrid();
