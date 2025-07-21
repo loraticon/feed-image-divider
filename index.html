@@ -169,7 +169,7 @@
           drawRoundImage(img, x, y, cell, cell, 12);
         });
         // JPG로 다운로드
-        const dataURL = exportCanvas.toDataURL('image/jpeg', 0.92);
+        const dataURL = exportCanvas.toDataURL('image/jpeg', 1.0);
         const a = document.createElement('a');
         a.href = dataURL;
         a.download = 'notion-widget.jpg';
