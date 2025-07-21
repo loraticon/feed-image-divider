@@ -135,17 +135,28 @@
         ctx.restore();
       });
 
-      const TARGET = 4.5 * 1024 * 1024; // 4.5MB
-      let quality = 0.9, blob;
-      while (quality >= 0.7) {
-        blob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', quality));
+      // WebP 형식 사용, 0.95 → 0.75 범위에서 0.05 단위로 조정
+      const TARGET = 4.5 * 1024 * 1024;
+      let quality = 0.95, blob;
+      while (quality >= 0.75) {
+        blob = await new Promise(res => canvas.toBlob(res, 'image/webp', quality));
         if (blob.size <= TARGET) break;
-        quality = Math.round((quality - 0.1) * 10) / 10;
+        quality = Math.round((quality - 0.05) * 100) / 100;
+      }
+
+      // WebP 미지원 브라우저용 fallback (JPEG)
+      if (!blob || blob.size > TARGET) {
+        quality = 0.9;
+        while (quality >= 0.75) {
+          blob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', quality));
+          if (blob.size <= TARGET) break;
+          quality = Math.round((quality - 0.05) * 100) / 100;
+        }
       }
 
       const link = document.createElement('a');
       link.href = URL.createObjectURL(blob);
-      link.download = 'notion-widget.jpg';
+      link.download = 'notion-widget.webp';
       link.click();
       URL.revokeObjectURL(link.href);
     });
