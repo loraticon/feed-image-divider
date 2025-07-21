@@ -16,7 +16,7 @@
     .slot {
       position: relative;
       width: 100%;
-      padding-top: 100%;
+      padding-top: 100%; /* 1:1 비율 유지 */
       background: #eee;
       border-radius: 12px;
       overflow: hidden;
@@ -27,6 +27,7 @@
       width: 100%; height: 100%;
       object-fit: cover;
       object-position: center;
+      display: block;
     }
     #controls { display: flex; justify-content: space-between; align-items: center; margin: 16px 0; }
     .bg-btn { padding: 6px 12px; border: 1px solid #ccc; background: #fff; border-radius: 4px; cursor: pointer; }
@@ -114,7 +115,6 @@
       if (confirm('정말 모두 삭제하시겠습니까?')) { imgs = []; renderGrid(); }
     });
 
-    // 라운드 사각형 클립 함수
     function roundRect(ctx, x, y, w, h, r) {
       ctx.beginPath();
       ctx.moveTo(x + r, y);
@@ -136,33 +136,45 @@
 
       await Promise.all(slotImgs.map(img => img.complete ? Promise.resolve() : new Promise(res => img.onload = res)));
 
+      // 슬롯 DOM 기준 크기 가져오기
+      const sampleSlot = grid.querySelector('.slot');
+      const SLOT_W = sampleSlot.clientWidth;
+      const SLOT_H = sampleSlot.clientHeight;
       const rows = Math.ceil(slotImgs.length / cols);
-      const cropSizes = slotImgs.map(img => Math.min(img.naturalWidth, img.naturalHeight));
-      const cellSize = Math.min(...cropSizes);
-      const canvasWidth = cols * cellSize + gap * (cols - 1);
-      const canvasHeight = rows * cellSize + gap * (rows - 1);
 
+      // 캔버스 크기 설정
+      const canvasWidth = cols * SLOT_W + gap * (cols - 1);
+      const canvasHeight = rows * SLOT_H + gap * (rows - 1);
       const canvas = document.createElement('canvas');
-      canvas.width = canvasWidth; canvas.height = canvasHeight;
+      canvas.width = canvasWidth;
+      canvas.height = canvasHeight;
       const ctx = canvas.getContext('2d');
 
-      ctx.fillStyle = selectedColor; ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+      // 배경 채우기
+      ctx.fillStyle = selectedColor;
+      ctx.fillRect(0, 0, canvasWidth, canvasHeight);
 
+      // 브라우저 object-fit: cover 방식을 모방해 중앙 크롭
       slotImgs.forEach((img, idx) => {
         const row = Math.floor(idx / cols);
         const col = idx % cols;
-        const dx = col * (cellSize + gap), dy = row * (cellSize + gap);
-        const sw = cellSize, sh = cellSize;
-        const sx = (img.naturalWidth - sw) / 2, sy = (img.naturalHeight - sh) / 2;
+        const dx = col * (SLOT_W + gap);
+        const dy = row * (SLOT_H + gap);
+
+        const scale = Math.max(SLOT_W / img.naturalWidth, SLOT_H / img.naturalHeight);
+        const sw = SLOT_W / scale;
+        const sh = SLOT_H / scale;
+        const sx = (img.naturalWidth - sw) / 2;
+        const sy = (img.naturalHeight - sh) / 2;
 
         ctx.save();
-        roundRect(ctx, dx, dy, cellSize, cellSize, 12);
+        roundRect(ctx, dx, dy, SLOT_W, SLOT_H, 12);
         ctx.clip();
-        ctx.drawImage(img, sx, sy, sw, sh, dx, dy, cellSize, cellSize);
+        ctx.drawImage(img, sx, sy, sw, sh, dx, dy, SLOT_W, SLOT_H);
         ctx.restore();
       });
 
-      // 축소 및 JPEG 압축
+      // 해상도 축소 및 JPEG 압축
       const SCALE = 0.8;
       const smallCanvas = document.createElement('canvas');
       smallCanvas.width = Math.round(canvas.width * SCALE);
