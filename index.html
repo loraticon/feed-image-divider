@@ -134,27 +134,28 @@
     downloadBtn.addEventListener('click', async () => {
       const cols = 4;
       const gap = 8;
-      const SCALE = 0.8;
       const slotImgs = Array.from(grid.querySelectorAll('.slot img'));
       if (!slotImgs.length) return alert('이미지가 없습니다.');
 
       // 이미지 로딩 보장
       await Promise.all(slotImgs.map(img => img.complete ? Promise.resolve() : new Promise(res => img.onload = res)));
 
+      // 그리드 합성
       const rows = Math.ceil(slotImgs.length / cols);
       const cropSizes = slotImgs.map(img => Math.min(img.naturalWidth, img.naturalHeight));
       const cellSize = Math.min(...cropSizes);
       const canvasWidth = cols * cellSize + gap * (cols - 1);
       const canvasHeight = rows * cellSize + gap * (rows - 1);
-
       const canvas = document.createElement('canvas');
       canvas.width = canvasWidth;
       canvas.height = canvasHeight;
       const ctx = canvas.getContext('2d');
+
       // 배경 채우기
       ctx.fillStyle = selectedColor;
       ctx.fillRect(0, 0, canvasWidth, canvasHeight);
 
+      // 이미지 중앙 크롭 후 그리기
       slotImgs.forEach((img, idx) => {
         const row = Math.floor(idx / cols);
         const col = idx % cols;
@@ -167,13 +168,22 @@
         ctx.drawImage(img, sx, sy, sw, sh, dx, dy, cellSize, cellSize);
       });
 
-      canvas.toBlob(blob => {
+      // 해상도 축소 (80%) 및 JPEG 압축
+      const SCALE = 0.8;
+      const smallCanvas = document.createElement('canvas');
+      smallCanvas.width = Math.round(canvas.width * SCALE);
+      smallCanvas.height = Math.round(canvas.height * SCALE);
+      const smallCtx = smallCanvas.getContext('2d');
+      smallCtx.drawImage(canvas, 0, 0, canvas.width, canvas.height,
+                         0, 0, smallCanvas.width, smallCanvas.height);
+      
+      smallCanvas.toBlob(blob => {
         const link = document.createElement('a');
         link.href = URL.createObjectURL(blob);
         link.download = 'notion-widget.jpg';
         link.click();
         URL.revokeObjectURL(link.href);
-      }, 'image/jpg',0.8);
+      }, 'image/jpeg', 0.8);
     });
 
     renderGrid();
