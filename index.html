@@ -122,33 +122,32 @@
       if (!slotImgs.length) return alert('이미지가 없습니다.');
       await Promise.all(slotImgs.map(img => img.complete ? Promise.resolve() : new Promise(res => img.onload = res)));
 
-      // 슬롯 크기(px) 얻기
       const sampleSlot = grid.querySelector('.slot');
       const SLOT_W = sampleSlot.clientWidth;
       const SLOT_H = sampleSlot.clientHeight;
       const rows = Math.ceil(slotImgs.length / cols);
 
-      // 캔버스: 고해상도 위해 DPR 적용
+      // 하이 DPI 지원
       const DPR = window.devicePixelRatio || 1;
-      const canvasWidth = cols * SLOT_W + gap * (cols - 1);
-      const canvasHeight = rows * SLOT_H + gap * (rows - 1);
+      const canvasW = cols * SLOT_W + gap * (cols - 1);
+      const canvasH = rows * SLOT_H + gap * (rows - 1);
       const canvas = document.createElement('canvas');
-      canvas.width = canvasWidth * DPR;
-      canvas.height = canvasHeight * DPR;
+      canvas.width = canvasW * DPR;
+      canvas.height = canvasH * DPR;
       const ctx = canvas.getContext('2d');
       ctx.scale(DPR, DPR);
 
       // 배경
       ctx.fillStyle = selectedColor;
-      ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+      ctx.fillRect(0, 0, canvasW, canvasH);
 
-      // object-fit: cover 크롭 & 그리기
       slotImgs.forEach((img, idx) => {
         const row = Math.floor(idx / cols), col = idx % cols;
         const dx = col * (SLOT_W + gap), dy = row * (SLOT_H + gap);
         const scale = Math.max(SLOT_W / img.naturalWidth, SLOT_H / img.naturalHeight);
         const sw = SLOT_W / scale, sh = SLOT_H / scale;
         const sx = (img.naturalWidth - sw) / 2, sy = (img.naturalHeight - sh) / 2;
+
         ctx.save();
         roundRect(ctx, dx, dy, SLOT_W, SLOT_H, 12);
         ctx.clip();
@@ -156,14 +155,20 @@
         ctx.restore();
       });
 
-      // 즉시 JPEG 다운로드
-      canvas.toBlob(blob => {
-        const link = document.createElement('a');
-        link.href = URL.createObjectURL(blob);
-        link.download = 'notion-widget.jpg';
-        link.click();
-        URL.revokeObjectURL(link.href);
-      }, 'image/jpeg', 0.9);
+      // adaptive JPEG quality
+      const TARGET = 4.5 * 1024 * 1024; // 4.5MB
+      let quality = 0.9, blob;
+      while (quality >= 0.1) {
+        blob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', quality));
+        if (blob.size <= TARGET) break;
+        quality = Math.round((quality - 0.1) * 10) / 10;
+      }
+
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = 'notion-widget.jpg';
+      link.click();
+      URL.revokeObjectURL(link.href);
     });
 
     renderGrid();
