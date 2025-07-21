@@ -179,5 +179,21 @@
 
     renderGrid();
   </script>
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+<script>
+  downloadBtn.addEventListener('click', () => {
+    html2canvas(grid, {
+      backgroundColor: selectedColor,
+      scale: window.devicePixelRatio  // 디바이스 픽셀 비율만큼 고해상도로 캡처
+    }).then(canvas => {
+      canvas.toBlob(blob => {
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'notion-widget.png';
+        a.click();
+      }, 'image/png');
+    });
+  });
+</script>
 </body>
 </html>
