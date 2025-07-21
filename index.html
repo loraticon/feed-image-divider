@@ -16,7 +16,7 @@
     .slot {
       position: relative;
       width: 100%;
-      padding-top: 100%; /* 1:1 비율 유지 */
+      padding-top: 100%;
       background: #eee;
       border-radius: 12px;
       overflow: hidden;
@@ -29,31 +29,16 @@
       object-position: center;
       display: block;
     }
-    /* 다운로드 페이지에서도 same styling 적용 */
-    #controls {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin: 16px 0;
-    }
-    .bg-btn {
-      padding: 6px 12px;
-      border: 1px solid #ccc;
-      background: #fff;
-      border-radius: 4px;
-      cursor: pointer;
-    }
+    #controls { display: flex; justify-content: space-between; align-items: center; margin: 16px 0; }
+    .bg-btn { padding: 6px 12px; border: 1px solid #ccc; background: #fff; border-radius: 4px; cursor: pointer; }
     .bg-btn.active { border-color: #888; font-weight: bold; }
-    #downloadBtn, #clearBtn {
-      padding: 8px 16px;
-      background: #4CAF50; color: #fff;
-      border: none; border-radius: 8px;
-      cursor: pointer;
-    }
+    #downloadBtn, #clearBtn { padding: 8px 16px; background: #4CAF50; color: #fff; border: none; border-radius: 8px; cursor: pointer; }
     #clearBtn { background: #f44336; margin-left: 8px; }
     #downloadBtn:hover { background: #45A049; }
     #clearBtn:hover { background: #e53935; }
     .dragover { outline: 2px dashed #777; }
+    /* 숨겨진 캔버스 */
+    #exportCanvas { display:none; }
   </style>
 </head>
 <body>
@@ -64,25 +49,27 @@
         <button class="bg-btn" data-color="#191919">Dark</button>
       </div>
       <div>
-        <button id="downloadBtn">다운로드 페이지 생성</button>
+        <button id="downloadBtn">이미지 다운로드</button>
         <button id="clearBtn">전체 비우기</button>
       </div>
     </div>
     <div class="grid" id="grid"></div>
   </div>
   <input type="file" id="fileInput" accept="image/*" multiple style="display:none;">
+  <canvas id="exportCanvas"></canvas>
   <script>
     const grid = document.getElementById('grid');
     const fileInput = document.getElementById('fileInput');
     const clearBtn = document.getElementById('clearBtn');
     const downloadBtn = document.getElementById('downloadBtn');
     const bgBtns = document.querySelectorAll('.bg-btn');
+    const exportCanvas = document.getElementById('exportCanvas');
     let selectedColor = '#ffffff';
     const MAX = 8;
     let imgs = [];
 
     bgBtns.forEach(b => b.addEventListener('click', () => {
-      bgBtns.forEach(x=>x.classList.remove('active'));
+      bgBtns.forEach(x => x.classList.remove('active'));
       b.classList.add('active');
       selectedColor = b.dataset.color;
     }));
@@ -101,33 +88,74 @@
         const plus = document.createElement('div');
         plus.className = 'slot';
         plus.innerHTML = '<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:48px;color:#aaa;">+</div>';
-        plus.addEventListener('click', ()=>fileInput.click());
+        plus.addEventListener('click', () => fileInput.click());
         grid.appendChild(plus);
       }
     }
 
     fileInput.addEventListener('change', e => {
       Array.from(e.target.files).slice(0, MAX - imgs.length).forEach(f => {
-        const r = new FileReader();
-        r.onload = ()=>{ imgs.push(r.result); renderGrid(); };
-        r.readAsDataURL(f);
-      }); fileInput.value = '';
+        const reader = new FileReader();
+        reader.onload = () => { imgs.push(reader.result); renderGrid(); };
+        reader.readAsDataURL(f);
+      });
+      fileInput.value = '';
     });
-    grid.addEventListener('dragover', e=>{e.preventDefault();grid.classList.add('dragover');});
-    grid.addEventListener('dragleave', e=>grid.classList.remove('dragover'));
-    grid.addEventListener('drop', e=>{
-      e.preventDefault();grid.classList.remove('dragover');
-      Array.from(e.dataTransfer.files).filter(f=>f.type.startsWith('image/')).slice(0, MAX-imgs.length)
-        .forEach(f=>{ const r=new FileReader(); r.onload=()=>{imgs.push(r.result);renderGrid();};r.readAsDataURL(f); });
-    });
-    clearBtn.addEventListener('click', ()=>{ if(confirm('정말 모두 삭제하시겠습니까?')){imgs=[];renderGrid();}});
 
-    downloadBtn.addEventListener('click', ()=>{
-      const newWin = window.open('', '_blank');
-      const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Download</title>`+
-        `<style>body{margin:0;padding:20px;background:${selectedColor}} .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;} .slot{position:relative;width:100%;padding-top:100%;overflow:hidden;border-radius:12px;background:#eee;} .slot img{position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;object-position:center;}</style></head><body><div class="grid">`+
-        imgs.map(src=>`<div class="slot"><img src="${src}"/></div>`).join('')+`</div></body></html>`;
-      newWin.document.write(html); newWin.document.close();
+    grid.addEventListener('dragover', e => { e.preventDefault(); grid.classList.add('dragover'); });
+    grid.addEventListener('dragleave', () => grid.classList.remove('dragover'));
+    grid.addEventListener('drop', e => {
+      e.preventDefault(); grid.classList.remove('dragover');
+      Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/')).slice(0, MAX - imgs.length)
+        .forEach(f => { const reader = new FileReader(); reader.onload = () => { imgs.push(reader.result); renderGrid(); }; reader.readAsDataURL(f); });
+    });
+
+    clearBtn.addEventListener('click', () => {
+      if (confirm('정말 모두 삭제하시겠습니까?')) { imgs = []; renderGrid(); }
+    });
+
+    downloadBtn.addEventListener('click', () => {
+      const cols = 4;
+      const gap = 8;
+      const cell = 150;
+      const rows = Math.ceil(imgs.length / cols);
+      const width = cols * cell + (cols - 1) * gap;
+      const height = rows * cell + (rows - 1) * gap;
+      exportCanvas.width = width;
+      exportCanvas.height = height;
+      const ctx = exportCanvas.getContext('2d');
+
+      // 배경 채우기
+      ctx.fillStyle = selectedColor;
+      ctx.fillRect(0, 0, width, height);
+
+      // 이미지 로드 후 그리기
+      Promise.all(imgs.map(src => new Promise(resolve => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => resolve(img);
+        img.src = src;
+      }))).then(images => {
+        images.forEach((img, i) => {
+          const col = i % cols;
+          const row = Math.floor(i / cols);
+          const x = col * (cell + gap);
+          const y = row * (cell + gap);
+          // cover 방식
+          const scale = Math.max(cell / img.width, cell / img.height);
+          const sw = cell / scale;
+          const sh = cell / scale;
+          const sx = (img.width - sw) / 2;
+          const sy = (img.height - sh) / 2;
+          ctx.drawImage(img, sx, sy, sw, sh, x, y, cell, cell);
+        });
+        // JPG 다운로드
+        const dataURL = exportCanvas.toDataURL('image/jpeg', 0.92);
+        const a = document.createElement('a');
+        a.href = dataURL;
+        a.download = 'notion-widget.jpg';
+        a.click();
+      });
     });
 
     renderGrid();
