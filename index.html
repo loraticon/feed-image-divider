@@ -37,7 +37,6 @@
     #downloadBtn:hover { background: #45A049; }
     #clearBtn:hover { background: #e53935; }
     .dragover { outline: 2px dashed #777; }
-    #exportCanvas { display: none; }
   </style>
 </head>
 <body>
@@ -55,24 +54,28 @@
     <div class="grid" id="grid"></div>
   </div>
   <input type="file" id="fileInput" accept="image/*" multiple style="display:none;">
-  <canvas id="exportCanvas"></canvas>
+  <!-- html2canvas CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
   <script>
     const grid = document.getElementById('grid');
     const fileInput = document.getElementById('fileInput');
     const clearBtn = document.getElementById('clearBtn');
     const downloadBtn = document.getElementById('downloadBtn');
     const bgBtns = document.querySelectorAll('.bg-btn');
-    const exportCanvas = document.getElementById('exportCanvas');
     let selectedColor = '#ffffff';
     const MAX = 8;
     let imgs = [];
 
-    bgBtns.forEach(btn => btn.addEventListener('click', () => {
-      bgBtns.forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      selectedColor = btn.dataset.color;
-    }));
+    // 배경색 선택
+    bgBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        bgBtns.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        selectedColor = btn.dataset.color;
+      });
+    });
 
+    // 그리드 렌더링
     function renderGrid() {
       grid.innerHTML = '';
       imgs.forEach(src => {
@@ -92,108 +95,57 @@
       }
     }
 
+    // 파일 선택
     fileInput.addEventListener('change', e => {
-      Array.from(e.target.files).slice(0, MAX - imgs.length).forEach(file => {
-        const reader = new FileReader();
-        reader.onload = () => { imgs.push(reader.result); renderGrid(); };
-        reader.readAsDataURL(file);
-      }); fileInput.value = '';
+      Array.from(e.target.files).slice(0, MAX - imgs.length)
+        .forEach(file => {
+          const reader = new FileReader();
+          reader.onload = () => { imgs.push(reader.result); renderGrid(); };
+          reader.readAsDataURL(file);
+        });
+      fileInput.value = '';
     });
 
-    ['dragover','dragleave','drop'].forEach(evt => grid.addEventListener(evt, e => {
-      if(evt==='dragover'){ e.preventDefault(); grid.classList.add('dragover'); }
-      else if(evt==='dragleave'){ grid.classList.remove('dragover'); }
-      else { e.preventDefault(); grid.classList.remove('dragover');
-        Array.from(e.dataTransfer.files).filter(f=>f.type.startsWith('image/')).slice(0, MAX-imgs.length)
-          .forEach(file=>{ const r=new FileReader(); r.onload=()=>{imgs.push(r.result);renderGrid();}; r.readAsDataURL(file); });
+    // 드래그 & 드롭
+    ['dragover', 'dragleave', 'drop'].forEach(evt => grid.addEventListener(evt, e => {
+      if (evt === 'dragover') { e.preventDefault(); grid.classList.add('dragover'); }
+      else if (evt === 'dragleave') { grid.classList.remove('dragover'); }
+      else { // drop
+        e.preventDefault(); grid.classList.remove('dragover');
+        Array.from(e.dataTransfer.files)
+          .filter(f => f.type.startsWith('image/'))
+          .slice(0, MAX - imgs.length)
+          .forEach(file => {
+            const reader = new FileReader();
+            reader.onload = () => { imgs.push(reader.result); renderGrid(); };
+            reader.readAsDataURL(file);
+          });
       }
     }));
 
+    // 전체 비우기
     clearBtn.addEventListener('click', () => {
-      if(confirm('정말 모두 삭제하시겠습니까?')){ imgs=[]; renderGrid(); }
+      if (confirm('정말 모두 삭제하시겠습니까?')) { imgs = []; renderGrid(); }
     });
 
+    // html2canvas 로 다운로드
     downloadBtn.addEventListener('click', () => {
-      const cols = 4;
-      const gap = 8;
-      const cell = 150;
-      const rows = Math.ceil(imgs.length / cols);
-      const width = cols * cell + (cols - 1) * gap;
-      const height = rows * cell + (rows - 1) * gap;
-      const scale = window.devicePixelRatio || 2;
-      exportCanvas.width = width * scale;
-      exportCanvas.height = height * scale;
-      const ctx = exportCanvas.getContext('2d');
-      ctx.scale(scale, scale);
-
-      // 배경
-      ctx.fillStyle = selectedColor;
-      ctx.fillRect(0, 0, width, height);
-
-      // helper: rounded rect clip
-      function drawRoundImage(img, x, y, w, h, r) {
-        ctx.save();
-        ctx.beginPath();
-        ctx.moveTo(x + r, y);
-        ctx.lineTo(x + w - r, y);
-        ctx.arcTo(x + w, y, x + w, y + r, r);
-        ctx.lineTo(x + w, y + h - r);
-        ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
-        ctx.lineTo(x + r, y + h);
-        ctx.arcTo(x, y + h, x, y + h - r, r);
-        ctx.lineTo(x, y + r);
-        ctx.arcTo(x, y, x + r, y, r);
-        ctx.closePath();
-        ctx.clip();
-
-        // cover 방식 계산
-        const scaleImg = Math.max(w / img.width, h / img.height);
-        const sw = w / scaleImg;
-        const sh = h / scaleImg;
-        const sx = (img.width - sw) / 2;
-        const sy = (img.height - sh) / 2;
-        ctx.drawImage(img, sx, sy, sw, sh, x, y, w, h);
-        ctx.restore();
-      }
-
-      Promise.all(imgs.map(src => new Promise(res => {
-        const img = new Image(); img.crossOrigin='anonymous';
-        img.onload = () => res(img);
-        img.src = src;
-      }))).then(images => {
-        images.forEach((img, i) => {
-          const col = i % cols;
-          const row = Math.floor(i / cols);
-          const x = col * (cell + gap);
-          const y = row * (cell + gap);
-          drawRoundImage(img, x, y, cell, cell, 12);
-        });
-        // JPG로 다운로드
-        const dataURL = exportCanvas.toDataURL('image/png');
-        const a = document.createElement('a');
-        a.href = dataURL;
-        a.download = 'photo.png';
-        a.click();
+      html2canvas(grid, {
+        backgroundColor: selectedColor,
+        scale: window.devicePixelRatio || 2
+      }).then(canvas => {
+        canvas.toBlob(blob => {
+          const a = document.createElement('a');
+          a.href = URL.createObjectURL(blob);
+          a.download = 'notion-widget.png';
+          a.click();
+          URL.revokeObjectURL(a.href);
+        }, 'image/png');
       });
     });
 
+    // 초기 렌더링
     renderGrid();
   </script>
-  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
-<script>
-  downloadBtn.addEventListener('click', () => {
-    html2canvas(grid, {
-      backgroundColor: selectedColor,
-      scale: window.devicePixelRatio  // 디바이스 픽셀 비율만큼 고해상도로 캡처
-    }).then(canvas => {
-      canvas.toBlob(blob => {
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = 'notion-widget.png';
-        a.click();
-      }, 'image/png');
-    });
-  });
-</script>
 </body>
 </html>
