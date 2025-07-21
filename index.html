@@ -16,34 +16,20 @@
     .slot {
       position: relative;
       width: 100%;
-      padding-top: 100%;
+      padding-top: 100%; /* 1:1 비율 유지 */
       background: #eee;
       border-radius: 12px;
       overflow: hidden;
-      cursor: pointer;
     }
     .slot img {
       position: absolute;
       top: 0; left: 0; right: 0; bottom: 0;
       width: 100%; height: 100%;
-      object-fit: contain;
+      object-fit: cover;
       object-position: center;
+      display: block;
     }
-    .slot.horizontal img {
-      object-fit: cover;
-    }
-    .slot.vertical img {
-      object-fit: cover;
-      transform-origin: center;
-    }
-    .plus {
-      position: absolute;
-      top: 50%; left: 50%;
-      transform: translate(-50%, -50%);
-      font-size: 48px;
-      color: #aaa;
-      pointer-events: none;
-    }
+    /* 다운로드 페이지에서도 same styling 적용 */
     #controls {
       display: flex;
       justify-content: space-between;
@@ -57,29 +43,16 @@
       border-radius: 4px;
       cursor: pointer;
     }
-    .bg-btn.active {
-      border-color: #888;
-      font-weight: bold;
-    }
-    #downloadBtn {
+    .bg-btn.active { border-color: #888; font-weight: bold; }
+    #downloadBtn, #clearBtn {
       padding: 8px 16px;
-      background: #4CAF50;
-      color: #fff;
-      border: none;
-      border-radius: 8px;
+      background: #4CAF50; color: #fff;
+      border: none; border-radius: 8px;
       cursor: pointer;
     }
+    #clearBtn { background: #f44336; margin-left: 8px; }
     #downloadBtn:hover { background: #45A049; }
-    #clearBtn {
-      display: block;
-      margin: 0 auto;
-      padding: 8px 16px;
-      background: #fff;
-      border: 1px solid #ccc;
-      border-radius: 8px;
-      cursor: pointer;
-    }
-    #clearBtn:hover { background: #fafafa; }
+    #clearBtn:hover { background: #e53935; }
     .dragover { outline: 2px dashed #777; }
   </style>
 </head>
@@ -90,10 +63,12 @@
         <button class="bg-btn active" data-color="#ffffff">Light</button>
         <button class="bg-btn" data-color="#191919">Dark</button>
       </div>
-      <button id="downloadBtn">다운로드 페이지 생성</button>
+      <div>
+        <button id="downloadBtn">다운로드 페이지 생성</button>
+        <button id="clearBtn">전체 비우기</button>
+      </div>
     </div>
     <div class="grid" id="grid"></div>
-    <button id="clearBtn">전체 비우기</button>
   </div>
   <input type="file" id="fileInput" accept="image/*" multiple style="display:none;">
   <script>
@@ -101,89 +76,61 @@
     const fileInput = document.getElementById('fileInput');
     const clearBtn = document.getElementById('clearBtn');
     const downloadBtn = document.getElementById('downloadBtn');
-    const bgButtons = document.querySelectorAll('.bg-btn');
+    const bgBtns = document.querySelectorAll('.bg-btn');
     let selectedColor = '#ffffff';
-    const MAX_IMAGES = 8;
-    let images = [];
+    const MAX = 8;
+    let imgs = [];
 
-    bgButtons.forEach(btn => {
-      btn.addEventListener('click', () => {
-        bgButtons.forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        selectedColor = btn.getAttribute('data-color');
-      });
-    });
+    bgBtns.forEach(b => b.addEventListener('click', () => {
+      bgBtns.forEach(x=>x.classList.remove('active'));
+      b.classList.add('active');
+      selectedColor = b.dataset.color;
+    }));
 
-    function updateGrid() {
+    function renderGrid() {
       grid.innerHTML = '';
-      images.forEach(src => {
+      imgs.forEach(src => {
         const slot = document.createElement('div');
         slot.className = 'slot';
         const img = document.createElement('img');
         img.src = src;
-        img.onload = () => {
-          if (img.naturalWidth > img.naturalHeight) slot.classList.add('horizontal');
-          else slot.classList.add('vertical');
-        };
         slot.appendChild(img);
         grid.appendChild(slot);
       });
-      if (images.length < MAX_IMAGES) {
-        const plusSlot = document.createElement('div');
-        plusSlot.className = 'slot plus-slot';
+      if (imgs.length < MAX) {
         const plus = document.createElement('div');
-        plus.className = 'plus';
-        plus.textContent = '+';
-        plusSlot.appendChild(plus);
-        plusSlot.addEventListener('click', () => fileInput.click());
-        grid.appendChild(plusSlot);
+        plus.className = 'slot';
+        plus.innerHTML = '<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:48px;color:#aaa;">+</div>';
+        plus.addEventListener('click', ()=>fileInput.click());
+        grid.appendChild(plus);
       }
     }
 
     fileInput.addEventListener('change', e => {
-      const files = Array.from(e.target.files).slice(0, MAX_IMAGES - images.length);
-      files.forEach(file => {
-        const reader = new FileReader();
-        reader.onload = () => {
-          images.push(reader.result);
-          updateGrid();
-        };
-        reader.readAsDataURL(file);
-      });
-      fileInput.value = '';
+      Array.from(e.target.files).slice(0, MAX - imgs.length).forEach(f => {
+        const r = new FileReader();
+        r.onload = ()=>{ imgs.push(r.result); renderGrid(); };
+        r.readAsDataURL(f);
+      }); fileInput.value = '';
+    });
+    grid.addEventListener('dragover', e=>{e.preventDefault();grid.classList.add('dragover');});
+    grid.addEventListener('dragleave', e=>grid.classList.remove('dragover'));
+    grid.addEventListener('drop', e=>{
+      e.preventDefault();grid.classList.remove('dragover');
+      Array.from(e.dataTransfer.files).filter(f=>f.type.startsWith('image/')).slice(0, MAX-imgs.length)
+        .forEach(f=>{ const r=new FileReader(); r.onload=()=>{imgs.push(r.result);renderGrid();};r.readAsDataURL(f); });
+    });
+    clearBtn.addEventListener('click', ()=>{ if(confirm('정말 모두 삭제하시겠습니까?')){imgs=[];renderGrid();}});
+
+    downloadBtn.addEventListener('click', ()=>{
+      const newWin = window.open('', '_blank');
+      const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Download</title>`+
+        `<style>body{margin:0;padding:20px;background:${selectedColor}} .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;} .slot{position:relative;width:100%;padding-top:100%;overflow:hidden;border-radius:12px;background:#eee;} .slot img{position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;object-position:center;}</style></head><body><div class="grid">`+
+        imgs.map(src=>`<div class="slot"><img src="${src}"/></div>`).join('')+`</div></body></html>`;
+      newWin.document.write(html); newWin.document.close();
     });
 
-    grid.addEventListener('dragover', e => { e.preventDefault(); grid.classList.add('dragover'); });
-    grid.addEventListener('dragleave', e => { grid.classList.remove('dragover'); });
-    grid.addEventListener('drop', e => {
-      e.preventDefault(); grid.classList.remove('dragover');
-      const files = Array.from(e.dataTransfer.files)
-        .filter(f => f.type.startsWith('image/'))
-        .slice(0, MAX_IMAGES - images.length);
-      files.forEach(file => {
-        const reader = new FileReader();
-        reader.onload = () => { images.push(reader.result); updateGrid(); };
-        reader.readAsDataURL(file);
-      });
-    });
-
-    clearBtn.addEventListener('click', () => {
-      if (confirm('정말 모두 삭제하시겠습니까?')) {
-        images = [];
-        updateGrid();
-      }
-    });
-
-    downloadBtn.addEventListener('click', () => {
-      const win = window.open('', '_blank');
-      const imgHtml = images.map(src => `<img src="${src}" />`).join('');
-      const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Download Images</title><style>body{margin:0;padding:20px;background:${selectedColor};} .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;} .grid img{width:100%;height:auto;display:block;border-radius:12px;}</style></head><body><div class="grid">${imgHtml}</div></body></html>`;
-      win.document.write(html);
-      win.document.close();
-    });
-
-    // 초기 상태 렌더링
-    updateGrid();
+    renderGrid();
   </script>
 </body>
 </html>
