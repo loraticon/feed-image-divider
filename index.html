@@ -135,28 +135,32 @@
         ctx.restore();
       });
 
-      // WebP 형식 사용, 0.95 → 0.75 범위에서 0.05 단위로 조정
-      const TARGET = 4.5 * 1024 * 1024;
-      let quality = 0.95, blob;
-      while (quality >= 0.75) {
-        blob = await new Promise(res => canvas.toBlob(res, 'image/webp', quality));
-        if (blob.size <= TARGET) break;
-        quality = Math.round((quality - 0.05) * 100) / 100;
+      const TARGET = 4.5 * 1024 * 1024; // 4.5MB
+      // 이진 탐색으로 최적 quality 찾기
+      async function findBestBlob(type, minQ, maxQ) {
+        let low = minQ, high = maxQ, best = null;
+        for (let i = 0; i < 6; i++) {
+          const mid = (low + high) / 2;
+          const blob = await new Promise(res => canvas.toBlob(res, type, mid));
+          if (blob.size <= TARGET) {
+            best = { blob, q: mid };
+            low = mid;
+          } else {
+            high = mid;
+          }
+        }
+        return best;
       }
 
-      // WebP 미지원 브라우저용 fallback (JPEG)
-      if (!blob || blob.size > TARGET) {
-        quality = 0.9;
-        while (quality >= 0.75) {
-          blob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', quality));
-          if (blob.size <= TARGET) break;
-          quality = Math.round((quality - 0.05) * 100) / 100;
-        }
+      let result = await findBestBlob('image/webp', 0.75, 0.95);
+      if (!result) {
+        result = await findBestBlob('image/jpeg', 0.75, 0.95);
       }
+      const blob = result ? result.blob : await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.8));
 
       const link = document.createElement('a');
       link.href = URL.createObjectURL(blob);
-      link.download = 'notion-widget.webp';
+      link.download = result && result.blob.type === 'image/webp' ? 'notion-widget.webp' : 'notion-widget.jpg';
       link.click();
       URL.revokeObjectURL(link.href);
     });
