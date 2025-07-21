@@ -16,7 +16,7 @@
     .slot {
       position: relative;
       width: 100%;
-      padding-top: 100%; /* 정사각형 유지 */
+      padding-top: 100%;
       background: #eee;
       border-radius: 12px;
       overflow: hidden;
@@ -31,11 +31,10 @@
     }
     .slot.horizontal img {
       object-fit: cover;
-      object-position: center;
     }
     .slot.vertical img {
       object-fit: cover;
-      object-position: center;
+      transform-origin: center;
     }
     .plus {
       position: absolute;
@@ -45,9 +44,35 @@
       color: #aaa;
       pointer-events: none;
     }
+    #controls {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin: 16px 0;
+    }
+    .bg-btn {
+      padding: 6px 12px;
+      border: 1px solid #ccc;
+      background: #fff;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .bg-btn.active {
+      border-color: #888;
+      font-weight: bold;
+    }
+    #downloadBtn {
+      padding: 8px 16px;
+      background: #4CAF50;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    #downloadBtn:hover { background: #45A049; }
     #clearBtn {
       display: block;
-      margin: 20px auto 0;
+      margin: 0 auto;
       padding: 8px 16px;
       background: #fff;
       border: 1px solid #ccc;
@@ -60,6 +85,13 @@
 </head>
 <body>
   <div id="widget">
+    <div id="controls">
+      <div>
+        <button class="bg-btn active" data-color="#ffffff">Light</button>
+        <button class="bg-btn" data-color="#191919">Dark</button>
+      </div>
+      <button id="downloadBtn">다운로드 페이지 생성</button>
+    </div>
     <div class="grid" id="grid"></div>
     <button id="clearBtn">전체 비우기</button>
   </div>
@@ -68,8 +100,19 @@
     const grid = document.getElementById('grid');
     const fileInput = document.getElementById('fileInput');
     const clearBtn = document.getElementById('clearBtn');
+    const downloadBtn = document.getElementById('downloadBtn');
+    const bgButtons = document.querySelectorAll('.bg-btn');
+    let selectedColor = '#ffffff';
     const MAX_IMAGES = 8;
     let images = [];
+
+    bgButtons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        bgButtons.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        selectedColor = btn.getAttribute('data-color');
+      });
+    });
 
     function updateGrid() {
       grid.innerHTML = '';
@@ -131,7 +174,15 @@
       }
     });
 
-    // 초기 상태
+    downloadBtn.addEventListener('click', () => {
+      const win = window.open('', '_blank');
+      const imgHtml = images.map(src => `<img src="${src}" />`).join('');
+      const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Download Images</title><style>body{margin:0;padding:20px;background:${selectedColor};} .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;} .grid img{width:100%;height:auto;display:block;border-radius:12px;}</style></head><body><div class="grid">${imgHtml}</div></body></html>`;
+      win.document.write(html);
+      win.document.close();
+    });
+
+    // 초기 상태 렌더링
     updateGrid();
   </script>
 </body>
