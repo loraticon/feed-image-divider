@@ -1,73 +1,128 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Notion Image Widget</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Notion Image Widget (PNG Export)</title>
   <style>
-    /* ... 이전 스타일 그대로 ... */
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: sans-serif; padding: 20px; background: #f5f5f5; }
+    #controls { display: flex; gap: 12px; margin-bottom: 16px; }
+    button { padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; color: #fff; }
+    #addBtn { background: #007BFF; }
+    .bg-btn { background: #6c757d; }
+    .bg-btn.active { background: #343a40; }
+    #downloadBtn { background: #28A745; }
+    #clearBtn { background: #DC3545; }
+    .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+    .slot { position: relative; width: 100%; padding-top: 100%; border-radius: 12px; overflow: hidden; background: #eee; cursor: pointer; }
+    .slot img { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; object-position: center; }
+    .plus { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 48px; color: #aaa; pointer-events: none; }
   </style>
 </head>
 <body>
-  <!-- ... 이미지 추가/배경 토글/전체 비우기 버튼, 그리드 ... -->
-  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+  <div id="controls">
+    <button id="addBtn">이미지 추가</button>
+    <button class="bg-btn active" data-color="#ffffff">라이트</button>
+    <button class="bg-btn" data-color="#191919">다크</button>
+    <button id="downloadBtn">PNG 다운로드</button>
+    <button id="clearBtn">전체 비우기</button>
+  </div>
+  <div class="grid" id="grid"></div>
+  <input type="file" id="fileInput" accept="image/*" multiple style="display:none;">
+  <canvas id="exportCanvas" style="display:none;"></canvas>
+
   <script>
-  (function(){
-    // ... images, renderGrid, addBtn, clearBtn, bg-btn 처리 생략 ...
+    const MAX = 8;
+    let images = [];
+    let bgColor = '#ffffff';
+    const grid = document.getElementById('grid');
+    const fileInput = document.getElementById('fileInput');
+    const addBtn = document.getElementById('addBtn');
+    const downloadBtn = document.getElementById('downloadBtn');
+    const clearBtn = document.getElementById('clearBtn');
+    const bgBtns = document.querySelectorAll('.bg-btn');
+    const exportCanvas = document.getElementById('exportCanvas');
 
-    downloadBtn.addEventListener('click', function(){
-      if(images.length === 0){
-        return alert('먼저 이미지를 추가해주세요.');
-      }
-
-      // 1) 팝업 열기
-      var popup = window.open('', '_blank');
-
-      // 2) HTML 문자열을 쌓아간다
-      var html = '<!DOCTYPE html><html lang="ko"><head>'+
-                 '<meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>'+
-                 '<title>캡처 중...</title>'+
-                 '<style>'+
-                   '*{margin:0;padding:0;box-sizing:border-box}'+
-                   'body{padding:20px;background:' + bgColor + '}'+
-                   '.grid{display:grid;grid-template-columns:repeat(4,300px);gap:8px}'+
-                   '.slot{position:relative;width:300px;padding-top:300px;border-radius:12px;overflow:hidden;background:#eee}'+
-                   '.slot img{position:absolute;top:0;left:0;width:100%;height:100%;object-fit:contain;object-position:center}'+
-                 '</style>'+
-                 '</head><body>'+
-                 '<div class="grid" id="popGrid">';
-
-      // 3) 이미지 배열을 forEach 로 돌면서 한 장씩 추가
-      images.forEach(function(src){
-        html += '<div class="slot"><img src="' + src + '"/></div>';
+    function renderGrid() {
+      grid.innerHTML = '';
+      images.forEach(src => {
+        const slot = document.createElement('div'); slot.className = 'slot';
+        const img = document.createElement('img'); img.src = src;
+        slot.appendChild(img);
+        grid.appendChild(slot);
       });
+      if (images.length < MAX) {
+        const plus = document.createElement('div'); plus.className = 'slot plus';
+        plus.textContent = '+';
+        plus.addEventListener('click', () => fileInput.click());
+        grid.appendChild(plus);
+      }
+    }
 
-      html += '</div>'+
-              '<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"><\/script>'+
-              '<script>'+
-                'window.onload = function(){'+
-                  'html2canvas(document.getElementById("popGrid"),{scale:window.devicePixelRatio||2})'+
-                    '.then(function(canvas){'+
-                      'canvas.toBlob(function(blob){'+
-                        'var a=document.createElement("a");'+
-                        'a.href=URL.createObjectURL(blob);'+
-                        'a.download="notion-widget.png";'+
-                        'a.click();'+
-                        'window.close();'+
-                      '}, "image/png");'+
-                    '});'+
-                '};'+
-              '<\/script>'+
-              '</body></html>';
+    fileInput.addEventListener('change', e => {
+      Array.from(e.target.files).slice(0, MAX - images.length).forEach(file => {
+        images.push(URL.createObjectURL(file));
+      });
+      fileInput.value = '';
+      renderGrid();
+    });
 
-      // 4) 딱 한 번만 쓰기
-      popup.document.open();
-      popup.document.write(html);
-      popup.document.close();
+    addBtn.addEventListener('click', () => fileInput.click());
+    clearBtn.addEventListener('click', () => {
+      if (confirm('정말 모두 삭제하시겠습니까?')) {
+        images = [];
+        renderGrid();
+      }
+    });
+    bgBtns.forEach(btn => btn.addEventListener('click', () => {
+      bgBtns.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      bgColor = btn.dataset.color;
+    }));
+
+    downloadBtn.addEventListener('click', () => {
+      if (!images.length) return alert('이미지를 먼저 추가해주세요.');
+      // 캔버스 크기 설정
+      const cols = 4;
+      const gap = 8;
+      const cell = 150;
+      const rows = Math.ceil(images.length / cols);
+      const width = cols * cell + (cols - 1) * gap;
+      const height = rows * cell + (rows - 1) * gap;
+      exportCanvas.width = width;
+      exportCanvas.height = height;
+      const ctx = exportCanvas.getContext('2d');
+      // 배경색
+      ctx.fillStyle = bgColor;
+      ctx.fillRect(0, 0, width, height);
+      // 이미지 그리기
+      Promise.all(images.map(src => new Promise(resolve => {
+        const img = new Image(); img.onload = () => resolve(img); img.src = src;
+      }))).then(imgsArr => {
+        imgsArr.forEach((img, i) => {
+          const col = i % cols;
+          const row = Math.floor(i / cols);
+          const x = col * (cell + gap);
+          const y = row * (cell + gap);
+          // cover
+          const scale = Math.max(cell / img.width, cell / img.height);
+          const sw = cell / scale;
+          const sh = cell / scale;
+          const sx = (img.width - sw) / 2;
+          const sy = (img.height - sh) / 2;
+          ctx.drawImage(img, sx, sy, sw, sh, x, y, cell, cell);
+        });
+        // PNG 데이터 URL 생성 및 다운로드
+        const dataURL = exportCanvas.toDataURL('image/png');
+        const a = document.createElement('a');
+        a.href = dataURL;
+        a.download = 'notion-widget.png';
+        a.click();
+      });
     });
 
     renderGrid();
-  })();
   </script>
 </body>
 </html>
