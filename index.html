@@ -16,7 +16,7 @@
     .slot {
       position: relative;
       width: 100%;
-      padding-top: 100%; /* 1:1 비율 유지 */
+      padding-top: 100%; /* 1:1 */
       background: #eee;
       border-radius: 12px;
       overflow: hidden;
@@ -73,15 +73,13 @@
     function renderGrid() {
       grid.innerHTML = '';
       imgs.forEach(src => {
-        const slot = document.createElement('div');
-        slot.className = 'slot';
+        const slot = document.createElement('div'); slot.className = 'slot';
         const img = document.createElement('img'); img.src = src;
         slot.appendChild(img);
         grid.appendChild(slot);
       });
       if (imgs.length < MAX) {
-        const plus = document.createElement('div');
-        plus.className = 'slot';
+        const plus = document.createElement('div'); plus.className = 'slot';
         plus.innerHTML = '<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:48px;color:#aaa;">+</div>';
         plus.addEventListener('click', () => fileInput.click());
         grid.appendChild(plus);
@@ -89,36 +87,25 @@
     }
 
     fileInput.addEventListener('change', e => {
-      Array.from(e.target.files).slice(0, MAX - imgs.length)
-        .forEach(f => {
-          const r = new FileReader();
-          r.onload = () => { imgs.push(r.result); renderGrid(); };
-          r.readAsDataURL(f);
-        });
-      fileInput.value = '';
+      Array.from(e.target.files).slice(0, MAX - imgs.length).forEach(f => {
+        const r = new FileReader(); r.onload = () => { imgs.push(r.result); renderGrid(); };
+        r.readAsDataURL(f);
+      }); fileInput.value = '';
     });
     grid.addEventListener('dragover', e => { e.preventDefault(); grid.classList.add('dragover'); });
     grid.addEventListener('dragleave', e => grid.classList.remove('dragover'));
     grid.addEventListener('drop', e => {
       e.preventDefault(); grid.classList.remove('dragover');
-      Array.from(e.dataTransfer.files)
-        .filter(f => f.type.startsWith('image/'))
-        .slice(0, MAX - imgs.length)
-        .forEach(f => {
-          const r = new FileReader();
-          r.onload = () => { imgs.push(r.result); renderGrid(); };
-          r.readAsDataURL(f);
-        });
+      Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/')).slice(0, MAX-imgs.length).forEach(f => {
+        const r = new FileReader(); r.onload = () => { imgs.push(r.result); renderGrid(); };
+        r.readAsDataURL(f);
+      });
     });
-
-    clearBtn.addEventListener('click', () => {
-      if (confirm('정말 모두 삭제하시겠습니까?')) { imgs = []; renderGrid(); }
-    });
+    clearBtn.addEventListener('click', () => { if (confirm('정말 모두 삭제하시겠습니까?')) { imgs = []; renderGrid(); }});
 
     function roundRect(ctx, x, y, w, h, r) {
       ctx.beginPath();
-      ctx.moveTo(x + r, y);
-      ctx.lineTo(x + w - r, y);
+      ctx.moveTo(x + r, y); ctx.lineTo(x + w - r, y);
       ctx.quadraticCurveTo(x + w, y, x + w, y + r);
       ctx.lineTo(x + w, y + h - r);
       ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
@@ -133,40 +120,35 @@
       const cols = 4, gap = 8;
       const slotImgs = Array.from(grid.querySelectorAll('.slot img'));
       if (!slotImgs.length) return alert('이미지가 없습니다.');
-
       await Promise.all(slotImgs.map(img => img.complete ? Promise.resolve() : new Promise(res => img.onload = res)));
 
-      // 슬롯 DOM 기준 크기 가져오기
+      // 슬롯 크기(px) 얻기
       const sampleSlot = grid.querySelector('.slot');
       const SLOT_W = sampleSlot.clientWidth;
       const SLOT_H = sampleSlot.clientHeight;
       const rows = Math.ceil(slotImgs.length / cols);
 
-      // 캔버스 크기 설정
+      // 캔버스: 고해상도 위해 DPR 적용
+      const DPR = window.devicePixelRatio || 1;
       const canvasWidth = cols * SLOT_W + gap * (cols - 1);
       const canvasHeight = rows * SLOT_H + gap * (rows - 1);
       const canvas = document.createElement('canvas');
-      canvas.width = canvasWidth;
-      canvas.height = canvasHeight;
+      canvas.width = canvasWidth * DPR;
+      canvas.height = canvasHeight * DPR;
       const ctx = canvas.getContext('2d');
+      ctx.scale(DPR, DPR);
 
-      // 배경 채우기
+      // 배경
       ctx.fillStyle = selectedColor;
       ctx.fillRect(0, 0, canvasWidth, canvasHeight);
 
-      // 브라우저 object-fit: cover 방식을 모방해 중앙 크롭
+      // object-fit: cover 크롭 & 그리기
       slotImgs.forEach((img, idx) => {
-        const row = Math.floor(idx / cols);
-        const col = idx % cols;
-        const dx = col * (SLOT_W + gap);
-        const dy = row * (SLOT_H + gap);
-
+        const row = Math.floor(idx / cols), col = idx % cols;
+        const dx = col * (SLOT_W + gap), dy = row * (SLOT_H + gap);
         const scale = Math.max(SLOT_W / img.naturalWidth, SLOT_H / img.naturalHeight);
-        const sw = SLOT_W / scale;
-        const sh = SLOT_H / scale;
-        const sx = (img.naturalWidth - sw) / 2;
-        const sy = (img.naturalHeight - sh) / 2;
-
+        const sw = SLOT_W / scale, sh = SLOT_H / scale;
+        const sx = (img.naturalWidth - sw) / 2, sy = (img.naturalHeight - sh) / 2;
         ctx.save();
         roundRect(ctx, dx, dy, SLOT_W, SLOT_H, 12);
         ctx.clip();
@@ -174,16 +156,8 @@
         ctx.restore();
       });
 
-      // 해상도 축소 및 JPEG 압축
-      const SCALE = 0.8;
-      const smallCanvas = document.createElement('canvas');
-      smallCanvas.width = Math.round(canvas.width * SCALE);
-      smallCanvas.height = Math.round(canvas.height * SCALE);
-      const smallCtx = smallCanvas.getContext('2d');
-      smallCtx.drawImage(canvas, 0, 0, canvas.width, canvas.height,
-                         0, 0, smallCanvas.width, smallCanvas.height);
-
-      smallCanvas.toBlob(blob => {
+      // 즉시 JPEG 다운로드
+      canvas.toBlob(blob => {
         const link = document.createElement('a');
         link.href = URL.createObjectURL(blob);
         link.download = 'notion-widget.jpg';
