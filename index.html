@@ -123,8 +123,8 @@
       const SLOT_H = sample.clientHeight;
       const rows = Math.ceil(slotImgs.length / cols);
 
-      // DPI scaling을 줄여 원본 화질 유지 여유 확보
-      const DPR = 1;
+      // ─── DPI 배율을 화면에 맞춰 자동 적용 ───
+      const DPR = window.devicePixelRatio || 1;
       const canvasW = cols * SLOT_W + gap * (cols - 1);
       const canvasH = rows * SLOT_H + gap * (rows - 1);
       const canvas = document.createElement('canvas');
@@ -132,6 +132,7 @@
       canvas.height = canvasH * DPR;
       const ctx = canvas.getContext('2d');
       ctx.scale(DPR, DPR);
+      // ────────────────────────────────────
 
       ctx.fillStyle = selectedColor;
       ctx.fillRect(0, 0, canvasW, canvasH);
@@ -152,14 +153,14 @@
 
       const TARGET = 4.5 * 1024 * 1024; // 4.5MB
 
-      // 1) 우선 무손실 PNG 시도
+      // 1) 무손실 PNG 우선
       let blob = await new Promise(res => canvas.toBlob(res, 'image/png'));
       if (blob.size <= TARGET) {
         return saveBlob(blob, 'notion-widget.png');
       }
 
-      // 2) 품질 범위 0.5~1.0 이진 탐색
-      async function findBestBlob(type, minQ = 0.5, maxQ = 1.0) {
+      // 2) WebP(0.8–1.0) → JPEG(0.8–1.0) 이진 탐색
+      async function findBestBlob(type, minQ = 0.8, maxQ = 1.0) {
         let low = minQ, high = maxQ, best = null;
         for (let i = 0; i < 6; i++) {
           const mid = (low + high) / 2;
@@ -174,15 +175,12 @@
         return best;
       }
 
-      // WebP 우선 시도
       let result = await findBestBlob('image/webp');
-
-      // WebP가 크면 JPEG 시도
       if (!result) {
         result = await findBestBlob('image/jpeg');
       }
 
-      // 마지막 백업: quality=1.0 JPEG
+      // 3) 최후 백업: JPEG quality=1.0
       blob = result ? result.blob
                     : await new Promise(res => canvas.toBlob(res, 'image/jpeg', 1.0));
 
