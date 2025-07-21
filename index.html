@@ -134,6 +134,7 @@
     downloadBtn.addEventListener('click', async () => {
       const cols = 4;
       const gap = 8;
+      const SCALE = 0.8;
       const slotImgs = Array.from(grid.querySelectorAll('.slot img'));
       if (!slotImgs.length) return alert('이미지가 없습니다.');
 
