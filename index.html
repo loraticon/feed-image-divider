@@ -37,8 +37,7 @@
     #downloadBtn:hover { background: #45A049; }
     #clearBtn:hover { background: #e53935; }
     .dragover { outline: 2px dashed #777; }
-    /* 숨겨진 캔버스 */
-    #exportCanvas { display:none; }
+    #exportCanvas { display: none; }
   </style>
 </head>
 <body>
@@ -68,10 +67,10 @@
     const MAX = 8;
     let imgs = [];
 
-    bgBtns.forEach(b => b.addEventListener('click', () => {
-      bgBtns.forEach(x => x.classList.remove('active'));
-      b.classList.add('active');
-      selectedColor = b.dataset.color;
+    bgBtns.forEach(btn => btn.addEventListener('click', () => {
+      bgBtns.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      selectedColor = btn.dataset.color;
     }));
 
     function renderGrid() {
@@ -94,24 +93,24 @@
     }
 
     fileInput.addEventListener('change', e => {
-      Array.from(e.target.files).slice(0, MAX - imgs.length).forEach(f => {
+      Array.from(e.target.files).slice(0, MAX - imgs.length).forEach(file => {
         const reader = new FileReader();
         reader.onload = () => { imgs.push(reader.result); renderGrid(); };
-        reader.readAsDataURL(f);
-      });
-      fileInput.value = '';
+        reader.readAsDataURL(file);
+      }); fileInput.value = '';
     });
 
-    grid.addEventListener('dragover', e => { e.preventDefault(); grid.classList.add('dragover'); });
-    grid.addEventListener('dragleave', () => grid.classList.remove('dragover'));
-    grid.addEventListener('drop', e => {
-      e.preventDefault(); grid.classList.remove('dragover');
-      Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/')).slice(0, MAX - imgs.length)
-        .forEach(f => { const reader = new FileReader(); reader.onload = () => { imgs.push(reader.result); renderGrid(); }; reader.readAsDataURL(f); });
-    });
+    ['dragover','dragleave','drop'].forEach(evt => grid.addEventListener(evt, e => {
+      if(evt==='dragover'){ e.preventDefault(); grid.classList.add('dragover'); }
+      else if(evt==='dragleave'){ grid.classList.remove('dragover'); }
+      else { e.preventDefault(); grid.classList.remove('dragover');
+        Array.from(e.dataTransfer.files).filter(f=>f.type.startsWith('image/')).slice(0, MAX-imgs.length)
+          .forEach(file=>{ const r=new FileReader(); r.onload=()=>{imgs.push(r.result);renderGrid();}; r.readAsDataURL(file); });
+      }
+    }));
 
     clearBtn.addEventListener('click', () => {
-      if (confirm('정말 모두 삭제하시겠습니까?')) { imgs = []; renderGrid(); }
+      if(confirm('정말 모두 삭제하시겠습니까?')){ imgs=[]; renderGrid(); }
     });
 
     downloadBtn.addEventListener('click', () => {
@@ -121,19 +120,45 @@
       const rows = Math.ceil(imgs.length / cols);
       const width = cols * cell + (cols - 1) * gap;
       const height = rows * cell + (rows - 1) * gap;
-      exportCanvas.width = width;
-      exportCanvas.height = height;
+      const scale = window.devicePixelRatio || 2;
+      exportCanvas.width = width * scale;
+      exportCanvas.height = height * scale;
       const ctx = exportCanvas.getContext('2d');
+      ctx.scale(scale, scale);
 
-      // 배경 채우기
+      // 배경
       ctx.fillStyle = selectedColor;
       ctx.fillRect(0, 0, width, height);
 
-      // 이미지 로드 후 그리기
-      Promise.all(imgs.map(src => new Promise(resolve => {
-        const img = new Image();
-        img.crossOrigin = 'anonymous';
-        img.onload = () => resolve(img);
+      // helper: rounded rect clip
+      function drawRoundImage(img, x, y, w, h, r) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(x + r, y);
+        ctx.lineTo(x + w - r, y);
+        ctx.arcTo(x + w, y, x + w, y + r, r);
+        ctx.lineTo(x + w, y + h - r);
+        ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+        ctx.lineTo(x + r, y + h);
+        ctx.arcTo(x, y + h, x, y + h - r, r);
+        ctx.lineTo(x, y + r);
+        ctx.arcTo(x, y, x + r, y, r);
+        ctx.closePath();
+        ctx.clip();
+
+        // cover 방식 계산
+        const scaleImg = Math.max(w / img.width, h / img.height);
+        const sw = w / scaleImg;
+        const sh = h / scaleImg;
+        const sx = (img.width - sw) / 2;
+        const sy = (img.height - sh) / 2;
+        ctx.drawImage(img, sx, sy, sw, sh, x, y, w, h);
+        ctx.restore();
+      }
+
+      Promise.all(imgs.map(src => new Promise(res => {
+        const img = new Image(); img.crossOrigin='anonymous';
+        img.onload = () => res(img);
         img.src = src;
       }))).then(images => {
         images.forEach((img, i) => {
@@ -141,15 +166,9 @@
           const row = Math.floor(i / cols);
           const x = col * (cell + gap);
           const y = row * (cell + gap);
-          // cover 방식
-          const scale = Math.max(cell / img.width, cell / img.height);
-          const sw = cell / scale;
-          const sh = cell / scale;
-          const sx = (img.width - sw) / 2;
-          const sy = (img.height - sh) / 2;
-          ctx.drawImage(img, sx, sy, sw, sh, x, y, cell, cell);
+          drawRoundImage(img, x, y, cell, cell, 12);
         });
-        // JPG 다운로드
+        // JPG로 다운로드
         const dataURL = exportCanvas.toDataURL('image/jpeg', 0.92);
         const a = document.createElement('a');
         a.href = dataURL;
