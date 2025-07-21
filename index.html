@@ -169,10 +169,10 @@
       canvas.toBlob(blob => {
         const link = document.createElement('a');
         link.href = URL.createObjectURL(blob);
-        link.download = 'notion-widget.png';
+        link.download = 'notion-widget.jpg';
         link.click();
         URL.revokeObjectURL(link.href);
-      }, 'image/png');
+      }, 'image/jpg',0.8);
     });
 
     renderGrid();
