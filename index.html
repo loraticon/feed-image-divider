@@ -3,106 +3,400 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Notion Image Widget</title>
+  <title>Notion Image Grid Maker</title>
+  <script src="https://cdn.tailwindcss.com"></script>
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: sans-serif; padding: 20px; background: #f5f5f5; }
-    #widget { width: 100%; max-width: 600px; margin: 0 auto; }
-    .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
-    .slot { position: relative; width: 100%; padding-top: 100%; background: #eee; border-radius: 12px; overflow: hidden; }
-    .slot img { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; object-position: center; }
-    #controls { display: flex; justify-content: space-between; align-items: center; margin: 16px 0; }
-    .bg-btn { padding: 6px 12px; border: 1px solid #ccc; background: #fff; border-radius: 4px; cursor: pointer; }
-    .bg-btn.active { border-color: #888; font-weight: bold; }
-    #downloadBtn, #clearBtn { padding: 8px 16px; background: #4CAF50; color: #fff; border: none; border-radius: 8px; cursor: pointer; }
-    #clearBtn { background: #f44336; margin-left: 8px; }
-    #downloadBtn:hover { background: #45A049; }
-    #clearBtn:hover { background: #e53935; }
-    .dragover { outline: 2px dashed #777; }
+    /* 커스텀 스크롤바 및 트랜지션 */
+    body { background-color: #F7F7F5; color: #37352F; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, "Apple Color Emoji", Arial, sans-serif; }
+    .slot-wrapper { position: relative; width: 100%; border-radius: 12px; overflow: hidden; transition: all 0.2s ease; }
+    .slot-wrapper.empty { background-color: rgba(235, 236, 237, 0.5); border: 2px dashed rgba(55, 53, 47, 0.16); cursor: pointer; display: flex; align-items: center; justify-content: center; }
+    .slot-wrapper.empty:hover { background-color: rgba(235, 236, 237, 0.8); border-color: rgba(55, 53, 47, 0.4); }
+    .slot-wrapper img { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; object-position: center; }
+    .dragover { border-color: #2383E2 !important; background-color: rgba(35, 131, 226, 0.1) !important; }
+    
+    /* 비율 클래스 (최신 aspect-ratio 사용) */
+    .aspect-1-1 { aspect-ratio: 1 / 1; }
+    .aspect-4-3 { aspect-ratio: 4 / 3; }
+    .aspect-16-9 { aspect-ratio: 16 / 9; }
+    
+    /* 레이아웃 프리셋 1: 좌측 1개 강조, 우측 2개 */
+    .layout-preset1 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .layout-preset1 .slot-wrapper[data-index="0"] { grid-row: span 2; aspect-ratio: auto !important; height: 100%; }
+    
+    /* 레이아웃 프리셋 2: 상단 1개 강조, 하단 3개 */
+    .layout-preset2 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .layout-preset2 .slot-wrapper[data-index="0"] { grid-column: span 3; aspect-ratio: 21 / 9 !important; height: auto; }
+
+    /* 활성화된 버튼 스타일 */
+    .btn-active { background-color: #EFEFEF; font-weight: 600; color: #000; box-shadow: inset 0 0 0 1px rgba(55, 53, 47, 0.16); }
   </style>
 </head>
-<body>
-  <div id="widget">
-    <div id="controls">
+<body class="p-4 md:p-8 min-h-screen flex flex-col items-center">
+
+  <div class="w-full max-w-4xl bg-white rounded-2xl shadow-sm border border-gray-200 p-6 md:p-8">
+    <header class="mb-8 border-b border-gray-100 pb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
       <div>
-        <button class="bg-btn active" data-color="#ffffff">Light</button>
-        <button class="bg-btn" data-color="#191919">Dark</button>
+        <h1 class="text-2xl font-bold tracking-tight">Notion Image Grid</h1>
+        <p class="text-sm text-gray-500 mt-1">노션용 다중 이미지 그리드 생성기 (자동 4.5MB 압축)</p>
       </div>
-      <div>
-        <button id="downloadBtn">이미지 다운로드</button>
-        <button id="clearBtn">전체 비우기</button>
+      <div class="flex gap-2">
+        <button id="downloadBtn" class="flex items-center gap-2 bg-[#2383E2] hover:bg-[#1A73CC] text-white px-5 py-2.5 rounded-lg font-medium transition-colors">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+          이미지 다운로드
+        </button>
+      </div>
+    </header>
+
+    <!-- 컨트롤 패널 -->
+    <div class="flex flex-col gap-4 mb-8 bg-gray-50 p-4 rounded-xl border border-gray-100">
+      
+      <!-- 상단 컨트롤 (스타일, 배경, 초기화) -->
+      <div class="flex flex-wrap gap-6 justify-between w-full">
+        <div class="flex flex-wrap gap-6">
+          <!-- 스타일 설정 (프리셋) -->
+          <div class="flex flex-col gap-2">
+            <label class="text-xs font-semibold text-gray-500 uppercase tracking-wider">스타일</label>
+            <div class="flex bg-white rounded-lg border border-gray-200 p-1">
+              <button class="mode-btn btn-active px-4 py-1.5 rounded-md text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-mode="basic">기본 그리드</button>
+              <button class="mode-btn px-4 py-1.5 rounded-md text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-mode="preset1">좌측 강조 (3장)</button>
+              <button class="mode-btn px-4 py-1.5 rounded-md text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-mode="preset2">상단 강조 (4장)</button>
+            </div>
+          </div>
+
+          <!-- 배경색 설정 -->
+          <div class="flex flex-col gap-2">
+            <label class="text-xs font-semibold text-gray-500 uppercase tracking-wider">배경 테마</label>
+            <div class="flex bg-white rounded-lg border border-gray-200 p-1">
+              <button class="bg-btn btn-active px-4 py-1.5 rounded-md text-sm text-gray-600 hover:bg-gray-50 transition-colors flex items-center gap-2" data-color="#ffffff">
+                <span class="w-3 h-3 rounded-full border border-gray-300 bg-white"></span> Light
+              </button>
+              <button class="bg-btn px-4 py-1.5 rounded-md text-sm text-gray-600 hover:bg-gray-50 transition-colors flex items-center gap-2" data-color="#191919">
+                <span class="w-3 h-3 rounded-full bg-gray-900"></span> Dark
+              </button>
+              <button class="bg-btn px-4 py-1.5 rounded-md text-sm text-gray-600 hover:bg-gray-50 transition-colors flex items-center gap-2" data-color="transparent">
+                <span class="w-3 h-3 rounded-full bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI4IiBoZWlnaHQ9IjgiPjxyZWN0IHdpZHRoPSI0IiBoZWlnaHQ9IjQiIGZpbGw9IiNlNWU1ZTUiLz48cmVjdCB4PSI0IiB5PSI0IiB3aWR0aD0iNCIgaGVpZ2h0PSI0IiBmaWxsPSIjZTVlNWU1Ii8+PC9zdmc+')] border border-gray-300"></span> 투명
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex items-end">
+          <button id="clearBtn" class="px-4 py-1.5 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg text-sm font-medium transition-colors h-[34px]">
+            전체 초기화
+          </button>
+        </div>
+      </div>
+
+      <!-- 하단 컨트롤 (레이아웃 상세 - 기본 모드에서만 표시) -->
+      <div id="basicControls" class="flex flex-wrap gap-6 pt-4 border-t border-gray-200">
+        <!-- 레이아웃 설정 -->
+        <div class="flex flex-col gap-2">
+          <label class="text-xs font-semibold text-gray-500 uppercase tracking-wider">열 (Columns)</label>
+          <div class="flex bg-white rounded-lg border border-gray-200 p-1">
+            <button class="col-btn px-4 py-1.5 rounded-md text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-cols="2">2열</button>
+            <button class="col-btn px-4 py-1.5 rounded-md text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-cols="3">3열</button>
+            <button class="col-btn btn-active px-4 py-1.5 rounded-md text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-cols="4">4열</button>
+          </div>
+        </div>
+
+        <!-- 행 및 데이터 관리 -->
+        <div class="flex flex-col gap-2">
+          <label class="text-xs font-semibold text-gray-500 uppercase tracking-wider">행 (Rows)</label>
+          <div class="flex bg-white rounded-lg border border-gray-200 p-1">
+            <button id="removeRowBtn" class="px-3 py-1.5 rounded-md text-sm text-gray-600 hover:bg-gray-100 transition-colors" title="한 줄 삭제">-</button>
+            <span id="rowCountDisplay" class="px-3 py-1.5 text-sm font-medium text-gray-700 flex items-center">2줄</span>
+            <button id="addRowBtn" class="px-3 py-1.5 rounded-md text-sm text-gray-600 hover:bg-gray-100 transition-colors" title="한 줄 추가">+</button>
+          </div>
+        </div>
+      </div>
+      
+      <!-- 비율 설정 (항상 표시 - 서브 이미지 크기에 영향을 줌) -->
+      <div class="flex flex-col gap-2 mt-[-8px] pt-4 border-t border-gray-200" id="ratioControlGroup">
+        <label class="text-xs font-semibold text-gray-500 uppercase tracking-wider">기본 이미지 비율</label>
+        <div class="flex bg-white rounded-lg border border-gray-200 p-1 w-fit">
+          <button class="ratio-btn btn-active px-3 py-1.5 rounded-md text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-ratio="1-1">1:1</button>
+          <button class="ratio-btn px-3 py-1.5 rounded-md text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-ratio="4-3">4:3</button>
+          <button class="ratio-btn px-3 py-1.5 rounded-md text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-ratio="16-9">16:9</button>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- 드래그 앤 드롭 안내 배너 -->
+    <div class="mb-4 px-4 py-3 bg-blue-50 text-blue-600 rounded-xl border border-blue-100 flex items-center text-sm font-medium">
+      <svg class="w-5 h-5 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
+      여러 장의 이미지를 한 번에 이곳으로 드래그 앤 드롭하여 추가할 수 있습니다.
+    </div>
+
+    <!-- 그리드 영역 -->
+    <div id="gridContainer" class="p-6 rounded-2xl transition-colors duration-300" style="background-color: #ffffff;">
+      <div id="grid" class="grid gap-2" style="grid-template-columns: repeat(4, minmax(0, 1fr));">
+        <!-- 슬롯들이 JS로 렌더링 됨 -->
       </div>
     </div>
-    <div class="grid" id="grid"></div>
+
   </div>
+
   <input type="file" id="fileInput" accept="image/*" multiple style="display:none;">
+
   <script>
+    // 상태 관리
+    let state = {
+      imgs: [], // { id, dataUrl } 객체 배열
+      mode: 'basic', // 'basic' | 'preset1' | 'preset2'
+      cols: 4,
+      rows: 2,
+      ratio: '1-1',
+      bgColor: '#ffffff',
+      gap: 8 // px
+    };
+
+    // DOM 요소
     const grid = document.getElementById('grid');
+    const gridContainer = document.getElementById('gridContainer');
     const fileInput = document.getElementById('fileInput');
-    const clearBtn = document.getElementById('clearBtn');
-    const downloadBtn = document.getElementById('downloadBtn');
-    const bgBtns = document.querySelectorAll('.bg-btn');
-    let selectedColor = '#ffffff';
-    const MAX = 8;
-    let imgs = [];
+    const rowCountDisplay = document.getElementById('rowCountDisplay');
+    const basicControls = document.getElementById('basicControls');
+    let targetIndexForUpload = null;
 
-    bgBtns.forEach(b => {
-      b.addEventListener('click', () => {
-        bgBtns.forEach(x => x.classList.remove('active'));
-        b.classList.add('active');
-        selectedColor = b.dataset.color;
-      });
-    });
+    // 초기화 및 렌더링
+    function init() {
+      bindEvents();
+      renderGrid();
+    }
 
+    // 커스텀 모달
+    function showModal(message, isConfirm = false, onConfirm = null) {
+      const modalBg = document.createElement('div');
+      modalBg.className = 'fixed inset-0 bg-black/50 flex items-center justify-center z-50';
+      
+      const modalBox = document.createElement('div');
+      modalBox.className = 'bg-white rounded-xl p-6 max-w-sm w-full mx-4 shadow-lg text-center';
+      
+      const text = document.createElement('p');
+      text.className = 'text-gray-800 text-base mb-6 font-medium';
+      text.textContent = message;
+      
+      const btnContainer = document.createElement('div');
+      btnContainer.className = 'flex gap-3 justify-center';
+      
+      if (isConfirm) {
+        const cancelBtn = document.createElement('button');
+        cancelBtn.className = 'px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium transition-colors';
+        cancelBtn.textContent = '취소';
+        cancelBtn.onclick = () => document.body.removeChild(modalBg);
+        
+        const confirmBtn = document.createElement('button');
+        confirmBtn.className = 'px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg text-sm font-medium transition-colors';
+        confirmBtn.textContent = '삭제';
+        confirmBtn.onclick = () => {
+          document.body.removeChild(modalBg);
+          if (onConfirm) onConfirm();
+        };
+        
+        btnContainer.appendChild(cancelBtn);
+        btnContainer.appendChild(confirmBtn);
+      } else {
+        const okBtn = document.createElement('button');
+        okBtn.className = 'px-4 py-2 bg-[#2383E2] hover:bg-[#1A73CC] text-white rounded-lg text-sm font-medium transition-colors';
+        okBtn.textContent = '확인';
+        okBtn.onclick = () => document.body.removeChild(modalBg);
+        btnContainer.appendChild(okBtn);
+      }
+      
+      modalBox.appendChild(text);
+      modalBox.appendChild(btnContainer);
+      modalBg.appendChild(modalBox);
+      document.body.appendChild(modalBg);
+    }
+
+    // 그리드 렌더링 함수
     function renderGrid() {
       grid.innerHTML = '';
-      imgs.forEach(src => {
+      grid.className = 'grid gap-2 w-full'; // 초기화
+      grid.style.gridTemplateColumns = '';
+      
+      // 모드에 따른 UI 및 레이아웃 설정
+      let totalSlots = 0;
+      
+      if (state.mode === 'basic') {
+        basicControls.style.display = 'flex';
+        totalSlots = state.cols * state.rows;
+        grid.style.gridTemplateColumns = `repeat(${state.cols}, minmax(0, 1fr))`;
+        rowCountDisplay.textContent = `${state.rows}줄`;
+      } else if (state.mode === 'preset1') {
+        basicControls.style.display = 'none';
+        totalSlots = 3;
+        grid.classList.add('layout-preset1');
+      } else if (state.mode === 'preset2') {
+        basicControls.style.display = 'none';
+        totalSlots = 4;
+        grid.classList.add('layout-preset2');
+      }
+
+      // 배경 설정
+      gridContainer.style.backgroundColor = state.bgColor === 'transparent' ? 'transparent' : state.bgColor;
+      if (state.bgColor === 'transparent') {
+        gridContainer.style.backgroundImage = 'url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiI+PHJlY3Qgd2lkdGg9IjgiIGhlaWdodD0iOCIgZmlsbD0iI2YwZjBmMCIvPjxyZWN0IHg9IjgiIHk9IjgiIHdpZHRoPSI4IiBoZWlnaHQ9IjgiIGZpbGw9IiNmMGYwZjAiLz48L3N2Zz4=")';
+      } else {
+        gridContainer.style.backgroundImage = 'none';
+      }
+
+      // 렌더링 될 때 이미지가 짤려나갔다면 배열에서도 제거 (모드 전환 시 데이터 정리)
+      if (state.imgs.length > totalSlots) {
+        state.imgs = state.imgs.slice(0, totalSlots);
+      }
+      
+      for (let i = 0; i < totalSlots; i++) {
         const slot = document.createElement('div');
-        slot.className = 'slot';
-        const img = document.createElement('img');
-        img.src = src;
-        slot.appendChild(img);
+        // 공통 비율 적용 (프리셋의 강조 슬롯은 CSS !important로 덮어씌워짐)
+        slot.className = `slot-wrapper aspect-${state.ratio}`;
+        slot.dataset.index = i;
+        
+        if (state.imgs[i]) {
+          slot.classList.add('group');
+          slot.style.backgroundColor = '#eee';
+          
+          const img = document.createElement('img');
+          img.src = state.imgs[i].dataUrl;
+          
+          const delBtn = document.createElement('button');
+          delBtn.className = 'absolute top-2 right-2 bg-black/60 text-white w-7 h-7 rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center hover:bg-red-500 z-10';
+          delBtn.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>';
+          delBtn.onclick = (e) => {
+            e.stopPropagation();
+            state.imgs.splice(i, 1);
+            renderGrid();
+          };
+
+          slot.appendChild(img);
+          slot.appendChild(delBtn);
+        } else {
+          slot.classList.add('empty');
+          slot.innerHTML = '<svg class="w-8 h-8 text-gray-400 absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>';
+          slot.onclick = () => {
+            targetIndexForUpload = i;
+            fileInput.click();
+          };
+        }
         grid.appendChild(slot);
-      });
-      if (imgs.length < MAX) {
-        const plus = document.createElement('div');
-        plus.className = 'slot';
-        plus.innerHTML = '<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:48px;color:#aaa;">+</div>';
-        plus.addEventListener('click', () => fileInput.click());
-        grid.appendChild(plus);
       }
     }
 
-    fileInput.addEventListener('change', e => {
-      Array.from(e.target.files).slice(0, MAX - imgs.length).forEach(f => {
+    // 이벤트 바인딩
+    function bindEvents() {
+      // 스타일 모드 변경
+      document.querySelectorAll('.mode-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('btn-active'));
+          e.target.classList.add('btn-active');
+          state.mode = e.target.dataset.mode;
+          renderGrid();
+        });
+      });
+
+      // 레이아웃 변경 (열)
+      document.querySelectorAll('.col-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          document.querySelectorAll('.col-btn').forEach(b => b.classList.remove('btn-active'));
+          e.target.classList.add('btn-active');
+          state.cols = parseInt(e.target.dataset.cols);
+          renderGrid();
+        });
+      });
+
+      // 비율 변경
+      document.querySelectorAll('.ratio-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          document.querySelectorAll('.ratio-btn').forEach(b => b.classList.remove('btn-active'));
+          e.target.classList.add('btn-active');
+          state.ratio = e.target.dataset.ratio;
+          renderGrid();
+        });
+      });
+
+      // 배경 변경
+      document.querySelectorAll('.bg-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          const target = e.target.closest('.bg-btn');
+          document.querySelectorAll('.bg-btn').forEach(b => b.classList.remove('btn-active'));
+          target.classList.add('btn-active');
+          state.bgColor = target.dataset.color;
+          renderGrid();
+        });
+      });
+
+      // 행 추가/삭제
+      document.getElementById('addRowBtn').addEventListener('click', () => {
+        if(state.rows < 10) { state.rows++; renderGrid(); }
+      });
+      document.getElementById('removeRowBtn').addEventListener('click', () => {
+        if(state.rows > 1) { 
+          state.rows--; 
+          state.imgs = state.imgs.slice(0, state.rows * state.cols);
+          renderGrid(); 
+        }
+      });
+
+      // 초기화
+      document.getElementById('clearBtn').addEventListener('click', () => {
+        if (state.imgs.length > 0) {
+          showModal('모든 이미지를 삭제하시겠습니까?', true, () => {
+            state.imgs = [];
+            renderGrid();
+          });
+        }
+      });
+
+      // 파일 업로드 처리
+      fileInput.addEventListener('change', handleFiles);
+
+      // 드래그 앤 드롭
+      gridContainer.addEventListener('dragover', e => { e.preventDefault(); gridContainer.classList.add('dragover'); });
+      gridContainer.addEventListener('dragleave', () => gridContainer.classList.remove('dragover'));
+      gridContainer.addEventListener('drop', e => {
+        e.preventDefault();
+        gridContainer.classList.remove('dragover');
+        targetIndexForUpload = null;
+        handleFiles({ target: { files: e.dataTransfer.files } });
+      });
+
+      // 다운로드
+      document.getElementById('downloadBtn').addEventListener('click', processDownload);
+    }
+
+    function handleFiles(e) {
+      const files = Array.from(e.target.files).filter(f => f.type.startsWith('image/'));
+      if (!files.length) return;
+
+      let totalSlots = 0;
+      if(state.mode === 'basic') totalSlots = state.cols * state.rows;
+      else if(state.mode === 'preset1') totalSlots = 3;
+      else if(state.mode === 'preset2') totalSlots = 4;
+
+      let availableSpace = totalSlots - state.imgs.length;
+      const filesToProcess = files.slice(0, availableSpace);
+
+      let loadedCount = 0;
+      filesToProcess.forEach(f => {
         const reader = new FileReader();
-        reader.onload = () => { imgs.push(reader.result); renderGrid(); };
+        reader.onload = () => {
+          if (targetIndexForUpload !== null && !state.imgs[targetIndexForUpload]) {
+             state.imgs.push({ id: Date.now() + Math.random(), dataUrl: reader.result });
+          } else {
+             state.imgs.push({ id: Date.now() + Math.random(), dataUrl: reader.result });
+          }
+          
+          loadedCount++;
+          if (loadedCount === filesToProcess.length) {
+            targetIndexForUpload = null;
+            renderGrid();
+          }
+        };
         reader.readAsDataURL(f);
       });
       fileInput.value = '';
-    });
-
-    grid.addEventListener('dragover', e => { e.preventDefault(); grid.classList.add('dragover'); });
-    grid.addEventListener('dragleave', () => grid.classList.remove('dragover'));
-    grid.addEventListener('drop', e => {
-      e.preventDefault();
-      grid.classList.remove('dragover');
-      Array.from(e.dataTransfer.files)
-        .filter(f => f.type.startsWith('image/'))
-        .slice(0, MAX - imgs.length)
-        .forEach(f => {
-          const reader = new FileReader();
-          reader.onload = () => { imgs.push(reader.result); renderGrid(); };
-          reader.readAsDataURL(f);
-        });
-    });
-
-    clearBtn.addEventListener('click', () => {
-      if (confirm('정말 모두 삭제하시겠습니까?')) {
-        imgs = [];
-        renderGrid();
-      }
-    });
+    }
 
     function roundRect(ctx, x, y, w, h, r) {
       ctx.beginPath();
@@ -118,103 +412,142 @@
       ctx.closePath();
     }
 
-    downloadBtn.addEventListener('click', async () => {
-      const cols = 4, gap = 8;
-      const slotImgs = Array.from(grid.querySelectorAll('.slot img'));
-      if (!slotImgs.length) return alert('이미지가 없습니다.');
+    // 업그레이드된 고도화 다운로드 코어 로직 (비대칭 레이아웃 완벽 지원)
+    async function processDownload() {
+      if (state.imgs.length === 0) {
+        showModal('추가된 이미지가 없습니다.');
+        return;
+      }
 
-      // 1) 모든 이미지 로드 대기
-      await Promise.all(slotImgs.map(img =>
-        img.complete ? Promise.resolve() : new Promise(res => img.onload = res)
-      ));
+      const slots = Array.from(grid.querySelectorAll('.slot-wrapper'));
+      if (!slots.length) return;
 
-      // 2) 해상도 배율 설정
+      // 화면에 그려진 실제 Grid의 크기와 위치를 정밀하게 측정
+      const gridRect = grid.getBoundingClientRect();
+      const canvasW = gridRect.width;
+      const canvasH = gridRect.height;
+      const bgColor = state.bgColor;
+
+      // 고해상도 처리
       const DPR = window.devicePixelRatio || 1;
-      const exportScale = 2;              // 2~3 사이로 조정
+      const exportScale = 2; 
       const scaleFactor = DPR * exportScale;
-
-      const sample = grid.querySelector('.slot');
-      const SLOT_W = sample.clientWidth;
-      const SLOT_H = sample.clientHeight;
-      const rows = Math.ceil(slotImgs.length / cols);
-
-      const canvasW = cols * SLOT_W + gap * (cols - 1);
-      const canvasH = rows * SLOT_H + gap * (rows - 1);
+      
       const canvas = document.createElement('canvas');
       canvas.width  = canvasW * scaleFactor;
       canvas.height = canvasH * scaleFactor;
       const ctx = canvas.getContext('2d');
       ctx.scale(scaleFactor, scaleFactor);
 
-      // 3) 배경 채우기
-      ctx.fillStyle = selectedColor;
-      ctx.fillRect(0, 0, canvasW, canvasH);
+      // 배경 칠하기
+      if (bgColor === 'transparent') {
+        ctx.clearRect(0, 0, canvasW, canvasH);
+      } else {
+        ctx.fillStyle = bgColor;
+        ctx.fillRect(0, 0, canvasW, canvasH);
+      }
 
-      // 4) 슬롯 이미지 그리기
-      slotImgs.forEach((img, idx) => {
-        const row = Math.floor(idx / cols);
-        const col = idx % cols;
-        const dx = col * (SLOT_W + gap);
-        const dy = row * (SLOT_H + gap);
-        const scale = Math.max(SLOT_W / img.naturalWidth, SLOT_H / img.naturalHeight);
-        const sw = SLOT_W / scale;
-        const sh = SLOT_H / scale;
-        const sx = (img.naturalWidth - sw) / 2;
-        const sy = (img.naturalHeight - sh) / 2;
+      // 각 슬롯의 절대적인 렌더링 위치를 측정하여 캔버스에 그리기
+      const drawPromises = slots.map((slot) => {
+        return new Promise((resolve) => {
+          const imgEl = slot.querySelector('img');
+          const slotRect = slot.getBoundingClientRect();
+          
+          // Grid 컨테이너를 기준으로 한 상대적 x, y 좌표 계산
+          const dx = slotRect.left - gridRect.left;
+          const dy = slotRect.top - gridRect.top;
+          const SLOT_W = slotRect.width;
+          const SLOT_H = slotRect.height;
 
-        ctx.save();
-        roundRect(ctx, dx, dy, SLOT_W, SLOT_H, 12);
-        ctx.clip();
-        ctx.drawImage(img, sx, sy, sw, sh, dx, dy, SLOT_W, SLOT_H);
-        ctx.restore();
+          if (!imgEl) {
+            resolve();
+            return;
+          }
+
+          const img = new Image();
+          img.onload = () => {
+            // object-fit: cover 효과를 어떤 비대칭 비율에서도 완벽하게 수학적으로 구현
+            const scale = Math.max(SLOT_W / img.naturalWidth, SLOT_H / img.naturalHeight);
+            const sw = SLOT_W / scale;
+            const sh = SLOT_H / scale;
+            const sx = (img.naturalWidth - sw) / 2;
+            const sy = (img.naturalHeight - sh) / 2;
+
+            ctx.save();
+            roundRect(ctx, dx, dy, SLOT_W, SLOT_H, 12);
+            ctx.clip();
+            ctx.drawImage(img, sx, sy, sw, sh, dx, dy, SLOT_W, SLOT_H);
+            ctx.restore();
+            resolve();
+          };
+          img.src = imgEl.src;
+        });
       });
 
-      // 5) 품질 이진 탐색
+      const btn = document.getElementById('downloadBtn');
+      const originalText = btn.innerHTML;
+      btn.innerHTML = '처리중...';
+      btn.disabled = true;
+
+      await Promise.all(drawPromises);
+
       const TARGET = 4.5 * 1024 * 1024;
-      // 무손실 PNG 우선
-      let blob = await new Promise(res => canvas.toBlob(res, 'image/png'));
-      if (blob.size <= TARGET) {
-        return saveBlob(blob, 'notion-widget.png');
-      }
-
-      // WebP → JPEG
-      async function findBestBlob(type, minQ = 0.8, maxQ = 1.0) {
-        let low = minQ, high = maxQ, best = null;
-        for (let i = 0; i < 6; i++) {
-          const mid = (low + high) / 2;
-          const testBlob = await new Promise(res => canvas.toBlob(res, type, mid));
-          if (testBlob.size <= TARGET) {
-            best = { blob: testBlob, q: mid };
-            low = mid;
-          } else {
-            high = mid;
-          }
+      
+      try {
+        if (bgColor === 'transparent') {
+          const blob = await new Promise(res => canvas.toBlob(res, 'image/png'));
+          saveBlob(blob, 'notion-widget-transparent.png');
+          return;
         }
-        return best;
+
+        let blob = await new Promise(res => canvas.toBlob(res, 'image/png'));
+        if (blob.size <= TARGET) {
+          saveBlob(blob, 'notion-widget.png');
+          return;
+        }
+
+        async function findBestBlob(type, minQ = 0.8, maxQ = 1.0) {
+          let low = minQ, high = maxQ, best = null;
+          for (let i = 0; i < 6; i++) {
+            const mid = (low + high) / 2;
+            const testBlob = await new Promise(res => canvas.toBlob(res, type, mid));
+            if (testBlob.size <= TARGET) {
+              best = { blob: testBlob, q: mid };
+              low = mid; 
+            } else {
+              high = mid; 
+            }
+          }
+          return best;
+        }
+
+        let result = await findBestBlob('image/webp');
+        if (!result) {
+           result = await findBestBlob('image/jpeg');
+        }
+
+        blob = result ? result.blob : await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.9));
+        const ext = blob.type === 'image/webp' ? 'webp' : 'jpg';
+        
+        saveBlob(blob, `notion-widget.${ext}`);
+
+      } finally {
+        btn.innerHTML = originalText;
+        btn.disabled = false;
       }
+    }
 
-      let result = await findBestBlob('image/webp');
-      if (!result) {
-        result = await findBestBlob('image/jpeg');
-      }
+    function saveBlob(blob, filename) {
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(link.href);
+    }
 
-      blob = result
-           ? result.blob
-           : await new Promise(res => canvas.toBlob(res, 'image/jpeg', 1.0));
-
-      const ext = blob.type === 'image/webp' ? 'webp' : 'jpg';
-      saveBlob(blob, `notion-widget.${ext}`);
-
-      function saveBlob(blob, filename) {
-        const link = document.createElement('a');
-        link.href = URL.createObjectURL(blob);
-        link.download = filename;
-        link.click();
-        URL.revokeObjectURL(link.href);
-      }
-    });
-
-    renderGrid();
+    init();
   </script>
 </body>
 </html>
